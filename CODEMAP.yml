@@ -1,0 +1,127 @@
+version: 1
+last_updated: "2026-06-18"
+repo:
+  name: "GuidedPatch"
+  package_manager: "pnpm"
+  workspace: "pnpm workspace + Turborepo"
+  languages:
+    - "TypeScript"
+  notes:
+    - "Use this map for targeted discovery before scanning deeper paths."
+    - "Prefer source files under apps/*/src and packages/*/src; dist outputs are generated artifacts."
+
+source_of_truth:
+  docs_stack:
+    - "README.md"
+    - "PLAN.md"
+    - "ROADMAP.md"
+  workspace_manifests:
+    - "package.json"
+    - "pnpm-workspace.yaml"
+    - "turbo.json"
+    - "tsconfig.base.json"
+    - "vitest.config.ts"
+  runtime_state:
+    - ".guided-implementation/current.recipe.json"
+    - ".guided-implementation/current.recipe.md"
+    - ".guided-implementation/state.json"
+
+modules:
+  - id: workspace
+    purpose: "Root workspace orchestration for build, lint, test, and shared TypeScript/Vitest config."
+    root: "."
+    public_entry_points:
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
+      - "tsconfig.base.json"
+      - "vitest.config.ts"
+
+  - id: schema
+    purpose: "Shared GuidedPatch session contract and Zod validation for implementation and PR review modes."
+    root: "packages/schema"
+    public_entry_points:
+      - "packages/schema/src/index.ts"
+      - "packages/schema/src/guided-session.ts"
+    tests:
+      - "packages/schema/src/guided-session.test.ts"
+
+  - id: core
+    purpose: "Reusable session integrity checks, validation logic, recipe/state persistence, markdown output, and diff parsing."
+    root: "packages/core"
+    public_entry_points:
+      - "packages/core/src/index.ts"
+      - "packages/core/src/session.ts"
+      - "packages/core/src/state.ts"
+      - "packages/core/src/validation.ts"
+      - "packages/core/src/recipe-writer.ts"
+      - "packages/core/src/markdown-writer.ts"
+      - "packages/core/src/diff-parser.ts"
+    tests:
+      - "packages/core/src/session.test.ts"
+      - "packages/core/src/validation.test.ts"
+      - "packages/core/src/recipe-writer.test.ts"
+
+  - id: mcp_server
+    purpose: "Agent-facing MCP surface for validating, persisting, reading, and updating guided sessions."
+    root: "apps/mcp-server"
+    public_entry_points:
+      - "apps/mcp-server/src/server.ts"
+      - "apps/mcp-server/src/service.ts"
+      - "apps/mcp-server/src/index.ts"
+    important_files:
+      - "apps/mcp-server/package.json"
+      - "apps/mcp-server/tsup.config.ts"
+    tests:
+      - "apps/mcp-server/src/service.test.ts"
+
+  - id: vscode_extension
+    purpose: "VS Code renderer/controller that loads recipe files, watches runtime state, navigates steps, and renders ghost code and review playback."
+    root: "apps/vscode-extension"
+    public_entry_points:
+      - "apps/vscode-extension/src/extension.ts"
+      - "apps/vscode-extension/src/sidebar/GuidedPatchViewProvider.ts"
+      - "apps/vscode-extension/src/sidebar/webview.tsx"
+      - "apps/vscode-extension/src/speech/narrator.ts"
+    important_files:
+      - "apps/vscode-extension/package.json"
+      - "apps/vscode-extension/build.mjs"
+      - "apps/vscode-extension/src/sidebar/types.ts"
+    tests: []
+
+  - id: example_recipes
+    purpose: "Sample guided sessions for implementation and PR review flows."
+    root: ".guided-implementation/examples"
+    public_entry_points:
+      - ".guided-implementation/examples/implementation.recipe.json"
+      - ".guided-implementation/examples/pr-review.recipe.json"
+    tests: []
+
+commands:
+  install:
+    - "pnpm install"
+  build:
+    - "pnpm build"
+  test:
+    - "pnpm test"
+  lint:
+    - "pnpm lint"
+  dev:
+    - "pnpm dev"
+  mcp_server:
+    - "pnpm --filter @guidedpatch/mcp-server dev"
+  vscode_extension:
+    - "pnpm --filter guidedpatch-vscode-extension dev"
+
+boundary_rules:
+  architecture_flow:
+    - "External harness -> MCP server -> .guided-implementation recipe/state files -> VS Code extension"
+  ownership:
+    - "packages/schema defines shared contracts; changes here affect both MCP and extension behavior."
+    - "packages/core holds reusable logic only; keep editor-specific behavior out of core."
+    - "apps/mcp-server validates and persists sessions; it must not act as an agent or call LLM providers."
+    - "apps/vscode-extension owns rendering, navigation, highlighting, ghost text, and user progress detection."
+  edit_targets:
+    - "Edit src files, docs, manifests, and example recipes; do not treat dist outputs as source of truth."
+  mvp_constraints:
+    - "Do not add an Agent API, direct LLM provider integration, speech/TTS UI, hosted backend, database, or cloud auth in MVP."

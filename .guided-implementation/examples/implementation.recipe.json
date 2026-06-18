@@ -1,0 +1,62 @@
+{
+  "id": "example-implementation-session",
+  "mode": "implementation",
+  "title": "Create an auth middleware",
+  "summary": "Builds a middleware file and then wires it into a route module.",
+  "createdAt": "2026-06-18T00:00:00.000Z",
+  "steps": [
+    {
+      "id": "step-1",
+      "order": 1,
+      "mode": "implementation",
+      "file": {
+        "path": "src/middleware/auth.ts",
+        "exists": false,
+        "createIfMissing": true
+      },
+      "location": {
+        "strategy": "create_file"
+      },
+      "explanation": {
+        "title": "Create the auth middleware",
+        "what": "Adds a reusable authorization middleware.",
+        "why": "Route handlers should not repeat authentication checks.",
+        "impact": "Protected handlers can fail fast before business logic runs.",
+        "narration": {
+          "short": "This step creates reusable auth middleware."
+        }
+      },
+      "ghostCode": "import type { FastifyReply, FastifyRequest } from 'fastify';\n\nexport async function authMiddleware(request: FastifyRequest, reply: FastifyReply) {\n  const authHeader = request.headers.authorization;\n\n  if (!authHeader) {\n    return reply.code(401).send({ error: 'Missing authorization header' });\n  }\n}\n",
+      "validation": {
+        "type": "normalised_match"
+      }
+    },
+    {
+      "id": "step-2",
+      "order": 2,
+      "mode": "implementation",
+      "file": {
+        "path": "src/routes/projects.ts",
+        "exists": true,
+        "createIfMissing": false
+      },
+      "location": {
+        "strategy": "line",
+        "line": 1,
+        "column": 0
+      },
+      "explanation": {
+        "title": "Import the middleware",
+        "what": "Adds the auth middleware import to the projects routes file.",
+        "why": "The route module needs access to the shared middleware.",
+        "narration": {
+          "short": "Import the new middleware into the route module."
+        }
+      },
+      "ghostCode": "import { authMiddleware } from '../middleware/auth';\n",
+      "validation": {
+        "type": "normalised_match"
+      }
+    }
+  ]
+}

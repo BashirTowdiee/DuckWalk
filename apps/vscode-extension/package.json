@@ -1,0 +1,76 @@
+{
+  "name": "guidedpatch-vscode-extension",
+  "displayName": "GuidedPatch",
+  "description": "Guided implementation and PR review playback for VS Code.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "guidedpatch",
+  "type": "commonjs",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:guidedPatch.sidebar",
+    "onCommand:guidedPatch.startSession"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "guidedPatch",
+          "title": "GuidedPatch",
+          "icon": "media/guidedpatch-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "guidedPatch": [
+        {
+          "id": "guidedPatch.sidebar",
+          "name": "GuidedPatch",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "guidedPatch.startSession",
+        "title": "GuidedPatch: Start Session"
+      },
+      {
+        "command": "guidedPatch.nextStep",
+        "title": "GuidedPatch: Next Step"
+      },
+      {
+        "command": "guidedPatch.previousStep",
+        "title": "GuidedPatch: Previous Step"
+      },
+      {
+        "command": "guidedPatch.refreshSession",
+        "title": "GuidedPatch: Refresh Session"
+      },
+      {
+        "command": "guidedPatch.completeStep",
+        "title": "GuidedPatch: Mark Step Complete"
+      },
+      {
+        "command": "guidedPatch.togglePlayback",
+        "title": "GuidedPatch: Toggle Playback"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@guidedpatch/core": "workspace:*",
+    "@guidedpatch/schema": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}

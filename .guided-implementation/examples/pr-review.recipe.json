@@ -1,0 +1,84 @@
+{
+  "id": "example-pr-review-session",
+  "mode": "pr_review",
+  "title": "Playback an auth middleware change",
+  "summary": "Walks through a middleware introduction and route registration change.",
+  "createdAt": "2026-06-18T00:00:00.000Z",
+  "steps": [
+    {
+      "id": "review-step-1",
+      "order": 1,
+      "mode": "pr_review",
+      "file": {
+        "path": "src/middleware/auth.ts",
+        "exists": true
+      },
+      "location": {
+        "strategy": "range",
+        "range": {
+          "startLine": 1,
+          "startCharacter": 0,
+          "endLine": 9,
+          "endCharacter": 0
+        }
+      },
+      "explanation": {
+        "title": "Introduce auth middleware",
+        "what": "Adds a central auth middleware function.",
+        "why": "Authentication logic should be shared instead of duplicated.",
+        "impact": "Protected routes can consistently reject missing headers.",
+        "risk": "Routes must remember to register the middleware.",
+        "narration": {
+          "short": "This change introduces central auth middleware."
+        }
+      },
+      "review": {
+        "beforeCode": "",
+        "afterCode": "import type { FastifyReply, FastifyRequest } from 'fastify';\n\nexport async function authMiddleware(request: FastifyRequest, reply: FastifyReply) {\n  const authHeader = request.headers.authorization;\n\n  if (!authHeader) {\n    return reply.code(401).send({ error: 'Missing authorization header' });\n  }\n}\n",
+        "changedRange": {
+          "startLine": 1,
+          "startCharacter": 0,
+          "endLine": 9,
+          "endCharacter": 0
+        }
+      }
+    },
+    {
+      "id": "review-step-2",
+      "order": 2,
+      "mode": "pr_review",
+      "file": {
+        "path": "src/routes/projects.ts",
+        "exists": true
+      },
+      "location": {
+        "strategy": "range",
+        "range": {
+          "startLine": 1,
+          "startCharacter": 0,
+          "endLine": 4,
+          "endCharacter": 0
+        }
+      },
+      "explanation": {
+        "title": "Wire the middleware into project routes",
+        "what": "Imports and uses the auth middleware in the routes module.",
+        "why": "The middleware only works if routes opt into it.",
+        "impact": "Project endpoints are now protected.",
+        "narration": {
+          "short": "The route file now uses the auth middleware."
+        }
+      },
+      "review": {
+        "beforeCode": "export async function projectRoutes(app) {\n  app.get('/projects', async () => []);\n}\n",
+        "afterCode": "import { authMiddleware } from '../middleware/auth';\n\nexport async function projectRoutes(app) {\n  app.addHook('preHandler', authMiddleware);\n  app.get('/projects', async () => []);\n}\n",
+        "changedRange": {
+          "startLine": 1,
+          "startCharacter": 0,
+          "endLine": 6,
+          "endCharacter": 0
+        }
+      }
+    }
+  ]
+}
