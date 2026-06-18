@@ -28,6 +28,14 @@ const walkthroughSession: GuidedSession = {
           endCharacter: 0
         }
       },
+      relatedRanges: [
+        {
+          startLine: 130,
+          startCharacter: 0,
+          endLine: 190,
+          endCharacter: 0
+        }
+      ],
       explanation: {
         title: "Begin in the middleware",
         what: "The middleware reads the bearer token.",
@@ -46,6 +54,7 @@ describe("renderSessionMarkdown", () => {
 
     expect(markdown).toContain("Question: How does authentication work in this backend?");
     expect(markdown).toContain("- How: The request header is parsed before control moves into the auth service.");
+    expect(markdown).toContain("- Where: 3:0 - 10:0; 130:0 - 190:0");
     expect(markdown).toContain("### Snippet");
     expect(markdown).toContain("src/auth/middleware.ts");
   });

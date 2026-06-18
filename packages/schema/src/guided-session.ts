@@ -69,6 +69,7 @@ const baseStepSchema = z.object({
   mode: sessionModeSchema,
   file: guidedFileTargetSchema,
   location: guidedLocationSchema,
+  relatedRanges: z.array(guidedRangeSchema).min(1).optional(),
   explanation: stepExplanationSchema,
   validation: stepValidationSchema.optional(),
   status: stepStatusSchema.optional()

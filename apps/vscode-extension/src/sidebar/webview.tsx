@@ -57,29 +57,35 @@ function getGuidanceModeHelp(mode: GuidanceMode, tabAcceptEnabled: boolean) {
   }
 }
 
-function getStepLocationLabel(step: GuidedStep) {
+function getStepLocationLabels(step: GuidedStep) {
+  const labels: string[] = [];
+
   if (step.mode === "pr_review" && step.review.changedRange) {
     const range = step.review.changedRange;
-    return `${range.startLine}:${range.startCharacter} - ${range.endLine}:${range.endCharacter}`;
-  }
-
-  if (step.location.strategy === "range" && step.location.range) {
+    labels.push(
+      `${range.startLine}:${range.startCharacter} - ${range.endLine}:${range.endCharacter}`
+    );
+  } else if (step.location.strategy === "range" && step.location.range) {
     const range = step.location.range;
-    return `${range.startLine}:${range.startCharacter} - ${range.endLine}:${range.endCharacter}`;
-  }
-
-  if (step.location.strategy === "line" && step.location.line) {
-    return `${step.location.line}:${step.location.column ?? 0}`;
-  }
-
-  if (
+    labels.push(
+      `${range.startLine}:${range.startCharacter} - ${range.endLine}:${range.endCharacter}`
+    );
+  } else if (step.location.strategy === "line" && step.location.line) {
+    labels.push(`${step.location.line}:${step.location.column ?? 0}`);
+  } else if (
     (step.location.strategy === "after_text" || step.location.strategy === "before_text") &&
     step.location.anchorText
   ) {
-    return step.location.anchorText;
+    labels.push(step.location.anchorText);
   }
 
-  return step.location.strategy;
+  for (const range of step.relatedRanges ?? []) {
+    labels.push(
+      `${range.startLine}:${range.startCharacter} - ${range.endLine}:${range.endCharacter}`
+    );
+  }
+
+  return labels.length > 0 ? labels : [step.location.strategy];
 }
 
 function App() {
@@ -205,7 +211,7 @@ function App() {
               const isActive = step.id === activeStep?.id;
               const status = stepStatus(step.id);
               const canToggleCompletion = step.mode === "implementation";
-              const locationLabel = getStepLocationLabel(step);
+              const locationLabel = getStepLocationLabels(step).join("; ");
               return (
                 <div
                   key={step.id}
@@ -303,7 +309,9 @@ function StepDetails({
         ) : null}
       </div>
       <small>{step.file.path}</small>
-      {step.mode === "codebase_walkthrough" ? <small>Where: {getStepLocationLabel(step)}</small> : null}
+      {step.mode === "codebase_walkthrough" ? (
+        <small>Where: {getStepLocationLabels(step).join("; ")}</small>
+      ) : null}
       {step.mode === "implementation" && status === "complete" ? (
         <small>Use the `Incomplete` button on the step row to reopen this step and reset later steps.</small>
       ) : null}

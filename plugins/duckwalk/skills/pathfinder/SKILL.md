@@ -74,6 +74,8 @@ Required walkthrough session fields:
 - each walkthrough step needs `id`, `order`, `mode: "codebase_walkthrough"`, `file`, `location`,
   `explanation`, and `snippet`
 - every walkthrough step must use `location.strategy: "range"` with a usable `location.range`
+- when one touchpoint spans disjoint sections of the same file, keep one primary `location.range`
+  and add the extra spans through optional `relatedRanges`
 
 Working rules:
 

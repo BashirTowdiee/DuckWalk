@@ -1,26 +1,32 @@
 import type { GuidedSession } from "@duckwalk/schema";
 
 function formatStepLocation(step: GuidedSession["steps"][number]): string | null {
+  const labels: string[] = [];
+
   if (step.mode === "pr_review" && step.review.changedRange) {
-    return `${step.review.changedRange.startLine}:${step.review.changedRange.startCharacter} - ${step.review.changedRange.endLine}:${step.review.changedRange.endCharacter}`;
-  }
-
-  if (step.location.strategy === "range" && step.location.range) {
-    return `${step.location.range.startLine}:${step.location.range.startCharacter} - ${step.location.range.endLine}:${step.location.range.endCharacter}`;
-  }
-
-  if (step.location.strategy === "line" && step.location.line) {
-    return `${step.location.line}:${step.location.column ?? 0}`;
-  }
-
-  if (
+    labels.push(
+      `${step.review.changedRange.startLine}:${step.review.changedRange.startCharacter} - ${step.review.changedRange.endLine}:${step.review.changedRange.endCharacter}`
+    );
+  } else if (step.location.strategy === "range" && step.location.range) {
+    labels.push(
+      `${step.location.range.startLine}:${step.location.range.startCharacter} - ${step.location.range.endLine}:${step.location.range.endCharacter}`
+    );
+  } else if (step.location.strategy === "line" && step.location.line) {
+    labels.push(`${step.location.line}:${step.location.column ?? 0}`);
+  } else if (
     (step.location.strategy === "after_text" || step.location.strategy === "before_text") &&
     step.location.anchorText
   ) {
-    return step.location.anchorText;
+    labels.push(step.location.anchorText);
   }
 
-  return null;
+  for (const range of step.relatedRanges ?? []) {
+    labels.push(
+      `${range.startLine}:${range.startCharacter} - ${range.endLine}:${range.endCharacter}`
+    );
+  }
+
+  return labels.length > 0 ? labels.join("; ") : null;
 }
 
 export function renderSessionMarkdown(session: GuidedSession): string {

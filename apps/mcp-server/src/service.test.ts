@@ -119,6 +119,14 @@ const codebaseWalkthroughSession: GuidedSession = {
           endCharacter: 0
         }
       },
+      relatedRanges: [
+        {
+          startLine: 130,
+          startCharacter: 0,
+          endLine: 190,
+          endCharacter: 0
+        }
+      ],
       explanation: {
         title: "Start in the auth middleware",
         what: "The middleware reads the bearer token from the incoming request.",
@@ -152,6 +160,7 @@ describe("duckWalk MCP service", () => {
     expect(contract.tools.pathfinder.description).toMatch(/codebase walkthrough/i);
     expect(contract.examples.create_guided_session.workspaceRoot).toMatch(/absolute\/path/);
     expect(contract.examples.pathfinder.session.question).toMatch(/authentication work/);
+    expect(contract.examples.pathfinder.session.steps[0]?.relatedRanges).toHaveLength(1);
     expect(contract.examples.create_guided_session.session.steps[0]?.ghostCode).toMatch(
       /Rejects unauthenticated requests/
     );

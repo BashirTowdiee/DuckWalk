@@ -105,6 +105,14 @@ describe("guidedSessionSchema", () => {
               endCharacter: 0
             }
           },
+          relatedRanges: [
+            {
+              startLine: 130,
+              startCharacter: 0,
+              endLine: 190,
+              endCharacter: 0
+            }
+          ],
           explanation: {
             title: "Start at the auth middleware",
             what: "This middleware extracts the bearer token.",
@@ -119,6 +127,7 @@ describe("guidedSessionSchema", () => {
 
     expect(result.question).toBe("How does authentication work in this backend?");
     expect(result.steps).toHaveLength(1);
+    expect(result.steps[0]?.relatedRanges).toHaveLength(1);
   });
 
   it("rejects a walkthrough session without question, how, or range", () => {

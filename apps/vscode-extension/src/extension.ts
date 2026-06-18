@@ -498,6 +498,19 @@ class DuckWalkController implements SidebarController, vscode.Disposable {
     return new vscode.Range(start, start);
   }
 
+  private resolveHighlightRanges(
+    document: vscode.TextDocument,
+    step: GuidedStep
+  ): vscode.Range[] {
+    const ranges = [this.resolveRange(document, step)];
+
+    for (const relatedRange of step.relatedRanges ?? []) {
+      ranges.push(this.rangeFromGuidedRange(document, relatedRange));
+    }
+
+    return ranges;
+  }
+
   private rangeFromGuidedRange(document: vscode.TextDocument, range: GuidedRange): vscode.Range {
     const startLine = Math.min(range.startLine - 1, Math.max(document.lineCount - 1, 0));
     const endLine = Math.min(range.endLine - 1, Math.max(document.lineCount - 1, 0));
@@ -551,8 +564,8 @@ class DuckWalkController implements SidebarController, vscode.Disposable {
       return;
     }
 
-    const range = this.resolveRange(editor.document, step);
-    editor.setDecorations(this.highlightDecorationType, [range]);
+    const ranges = this.resolveHighlightRanges(editor.document, step);
+    editor.setDecorations(this.highlightDecorationType, ranges);
 
     if (step.mode === "implementation") {
       this.queueGuidanceRefresh(editor);

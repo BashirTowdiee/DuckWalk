@@ -132,6 +132,7 @@ export function getDuckWalkContract() {
         "explanation",
         "snippet"
       ],
+      optionalStepFields: ["relatedRanges?"],
       guidedFileTargetFields: ["path", "exists?", "createIfMissing?"],
       locationStrategies: ["create_file", "line", "range", "after_text", "before_text"],
       explanationFields: ["title", "what", "why", "how?", "impact?", "risk?", "narration?"],
@@ -252,6 +253,14 @@ export function getDuckWalkContract() {
                   endCharacter: 0
                 }
               },
+              relatedRanges: [
+                {
+                  startLine: 130,
+                  startCharacter: 0,
+                  endLine: 190,
+                  endCharacter: 0
+                }
+              ],
               explanation: {
                 title: "Start at the auth middleware",
                 what: "This middleware extracts the bearer token from the request.",
