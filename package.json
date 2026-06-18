@@ -1,5 +1,5 @@
 {
-  "name": "guidedpatch",
+  "name": "duckwalk",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,6 +8,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
+    "plugin:refresh": "node scripts/plugin-refresh.mjs",
     "test": "vitest run"
   },
   "devDependencies": {

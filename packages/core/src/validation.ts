@@ -1,4 +1,4 @@
-import type { GuidedLocation, GuidedStep, StepValidation } from "@guidedpatch/schema";
+import type { GuidedLocation, GuidedStep, StepValidation } from "@duckwalk/schema";
 
 export function normaliseCode(input: string): string {
   return input
@@ -23,7 +23,11 @@ export function getValidationText(step: GuidedStep): string {
     return step.ghostCode;
   }
 
-  return step.review.afterCode ?? step.review.beforeCode ?? "";
+  if (step.mode === "pr_review") {
+    return step.review.afterCode ?? step.review.beforeCode ?? "";
+  }
+
+  return step.snippet;
 }
 
 export function extractValidationWindow(

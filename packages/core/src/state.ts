@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { GuidedSession, StepStatus } from "@guidedpatch/schema";
+import type { GuidedSession, StepStatus } from "@duckwalk/schema";
 import { z } from "zod";
 
 export const guidedPaths = {
@@ -184,6 +184,84 @@ export async function updateGuidedStepStatus(
     sessionId: session.id,
     activeStepId,
     activeStepOrder,
+    updatedAt: new Date().toISOString(),
+    steps: nextSteps
+  };
+
+  await writeGuidedState(rootDir, nextState, options);
+  return nextState;
+}
+
+export async function undoGuidedStepCompletion(
+  rootDir: string,
+  session: GuidedSession,
+  stepId: string,
+  options: { writeCurrent?: boolean } = {}
+): Promise<GuidedSessionState> {
+  const existing = (await readGuidedState(rootDir, session.id)) ?? createInitialSessionState(session);
+  const orderedSteps = [...session.steps].sort((left, right) => left.order - right.order);
+  const currentIndex = orderedSteps.findIndex((step) => step.id === stepId);
+
+  if (currentIndex === -1) {
+    throw new Error(`Unknown step ID: ${stepId}`);
+  }
+
+  const targetStep = orderedSteps[currentIndex]!;
+  const nextSteps = { ...existing.steps };
+
+  orderedSteps.forEach((step, index) => {
+    if (index < currentIndex) {
+      return;
+    }
+
+    if (step.id === targetStep.id) {
+      nextSteps[step.id] = { status: "active" };
+      return;
+    }
+
+    nextSteps[step.id] = { status: "pending" };
+  });
+
+  const nextState: GuidedSessionState = {
+    sessionId: session.id,
+    activeStepId: targetStep.id,
+    activeStepOrder: targetStep.order,
+    updatedAt: new Date().toISOString(),
+    steps: nextSteps
+  };
+
+  await writeGuidedState(rootDir, nextState, options);
+  return nextState;
+}
+
+export async function reopenGuidedStep(
+  rootDir: string,
+  session: GuidedSession,
+  stepId: string,
+  options: { writeCurrent?: boolean } = {}
+): Promise<GuidedSessionState> {
+  const existing = (await readGuidedState(rootDir, session.id)) ?? createInitialSessionState(session);
+  const targetStep = session.steps.find((candidate) => candidate.id === stepId);
+
+  if (!targetStep) {
+    throw new Error(`Unknown step ID: ${stepId}`);
+  }
+
+  const nextSteps = { ...existing.steps };
+
+  if (existing.activeStepId && existing.activeStepId !== stepId) {
+    const currentActive = nextSteps[existing.activeStepId];
+    if (currentActive?.status === "active") {
+      nextSteps[existing.activeStepId] = { status: "pending" };
+    }
+  }
+
+  nextSteps[stepId] = { status: "active" };
+
+  const nextState: GuidedSessionState = {
+    sessionId: session.id,
+    activeStepId: targetStep.id,
+    activeStepOrder: targetStep.order,
     updatedAt: new Date().toISOString(),
     steps: nextSteps
   };

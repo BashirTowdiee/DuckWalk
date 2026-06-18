@@ -1,12 +1,12 @@
 {
-  "name": "@guidedpatch/mcp-server",
+  "name": "@duckwalk/mcp-server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "guidedpatch-mcp": "./dist/server.js"
+    "duckwalk-mcp": "./dist/server.js"
   },
   "scripts": {
     "build": "tsup",
@@ -15,8 +15,8 @@
     "test": "vitest run src/service.test.ts"
   },
   "dependencies": {
-    "@guidedpatch/core": "workspace:*",
-    "@guidedpatch/schema": "workspace:*",
+    "@duckwalk/core": "workspace:*",
+    "@duckwalk/schema": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.4",
     "zod": "^3.24.1"
   }

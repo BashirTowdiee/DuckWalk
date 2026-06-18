@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 
 import type { SidebarController, WebviewState } from "./types";
 
-export class GuidedPatchViewProvider implements vscode.WebviewViewProvider {
+export class DuckWalkViewProvider implements vscode.WebviewViewProvider {
   private view: vscode.WebviewView | undefined;
 
   constructor(
@@ -53,16 +53,87 @@ export class GuidedPatchViewProvider implements vscode.WebviewViewProvider {
         background: var(--vscode-sideBar-background);
         color: var(--vscode-foreground);
       }
+      * {
+        box-sizing: border-box;
+      }
       button {
         border: 1px solid var(--vscode-button-border, transparent);
         background: var(--vscode-button-background);
         color: var(--vscode-button-foreground);
         border-radius: 6px;
+        min-height: 32px;
         padding: 6px 10px;
         cursor: pointer;
+        font: inherit;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      select {
+        border: 1px solid var(--vscode-dropdown-border, transparent);
+        background: var(--vscode-dropdown-background);
+        color: var(--vscode-dropdown-foreground);
+        border-radius: 6px;
+        min-height: 32px;
+        padding: 6px 10px;
+        width: 100%;
+        font: inherit;
       }
       button.secondary {
         background: transparent;
+      }
+      button.compact {
+        white-space: nowrap;
+        padding-inline: 10px;
+      }
+      button.iconButton {
+        min-width: 28px;
+        padding-inline: 8px;
+      }
+      button.rowButton {
+        width: 100%;
+        justify-content: flex-start;
+        align-items: flex-start;
+        flex-direction: column;
+        text-align: left;
+        gap: 4px;
+        min-width: 0;
+      }
+      .stepListScroll {
+        max-height: 252px;
+        overflow-y: auto;
+        padding-right: 2px;
+      }
+      .sidebarTitle {
+        color: var(--vscode-textLink-foreground);
+        letter-spacing: 0.01em;
+      }
+      .sessionTitle {
+        color: var(--vscode-foreground);
+        font-weight: 700;
+      }
+      .sectionHeading {
+        color: var(--vscode-textLink-foreground);
+      }
+      .detailHeading {
+        color: var(--vscode-textPreformat-foreground);
+      }
+      .stepTitle {
+        color: var(--vscode-foreground);
+      }
+      .stepTitleActive {
+        color: var(--vscode-textLink-foreground);
+      }
+      .statusActive {
+        color: var(--vscode-textLink-foreground);
+        font-weight: 600;
+      }
+      .statusComplete {
+        color: var(--vscode-testing-iconPassed);
+        font-weight: 600;
+      }
+      small {
+        color: var(--vscode-descriptionForeground);
       }
       pre {
         overflow: auto;
@@ -72,7 +143,7 @@ export class GuidedPatchViewProvider implements vscode.WebviewViewProvider {
         border-radius: 8px;
       }
     </style>
-    <title>GuidedPatch</title>
+    <title>duckWalk</title>
   </head>
   <body>
     <div id="root"></div>

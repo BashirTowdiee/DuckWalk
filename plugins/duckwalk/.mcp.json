@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "duckwalk": {
+      "command": "node",
+      "args": [
+        "apps/mcp-server/dist/server.js"
+      ],
+      "cwd": "../.."
+    }
+  }
+}

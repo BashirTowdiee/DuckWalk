@@ -1,7 +1,7 @@
 version: 1
 last_updated: "2026-06-18"
 repo:
-  name: "GuidedPatch"
+  name: "DuckWalk"
   package_manager: "pnpm"
   workspace: "pnpm workspace + Turborepo"
   languages:
@@ -38,7 +38,7 @@ modules:
       - "vitest.config.ts"
 
   - id: schema
-    purpose: "Shared GuidedPatch session contract and Zod validation for implementation and PR review modes."
+    purpose: "Shared DuckWalk session contract and Zod validation for implementation, PR review, and codebase walkthrough modes."
     root: "packages/schema"
     public_entry_points:
       - "packages/schema/src/index.ts"
@@ -58,12 +58,13 @@ modules:
       - "packages/core/src/markdown-writer.ts"
       - "packages/core/src/diff-parser.ts"
     tests:
+      - "packages/core/src/markdown-writer.test.ts"
       - "packages/core/src/session.test.ts"
       - "packages/core/src/validation.test.ts"
       - "packages/core/src/recipe-writer.test.ts"
 
   - id: mcp_server
-    purpose: "Agent-facing MCP surface for validating, persisting, reading, and updating guided sessions."
+    purpose: "Agent-facing MCP surface for validating, persisting, reading, and updating guided sessions, including Pathfinder walkthrough intake."
     root: "apps/mcp-server"
     public_entry_points:
       - "apps/mcp-server/src/server.ts"
@@ -76,11 +77,11 @@ modules:
       - "apps/mcp-server/src/service.test.ts"
 
   - id: vscode_extension
-    purpose: "VS Code renderer/controller that loads recipe files, watches runtime state, navigates steps, and renders ghost code and review playback."
+    purpose: "VS Code renderer/controller that loads recipe files, watches runtime state, navigates steps, and renders ghost code, review playback, and Pathfinder walkthroughs."
     root: "apps/vscode-extension"
     public_entry_points:
       - "apps/vscode-extension/src/extension.ts"
-      - "apps/vscode-extension/src/sidebar/GuidedPatchViewProvider.ts"
+      - "apps/vscode-extension/src/sidebar/DuckWalkViewProvider.ts"
       - "apps/vscode-extension/src/sidebar/webview.tsx"
       - "apps/vscode-extension/src/speech/narrator.ts"
     important_files:
@@ -90,10 +91,11 @@ modules:
     tests: []
 
   - id: example_recipes
-    purpose: "Sample guided sessions for implementation and PR review flows."
+    purpose: "Sample guided sessions for implementation, PR review, and Pathfinder walkthrough flows."
     root: ".guided-implementation/examples"
     public_entry_points:
       - ".guided-implementation/examples/implementation.recipe.json"
+      - ".guided-implementation/examples/pathfinder.recipe.json"
       - ".guided-implementation/examples/pr-review.recipe.json"
     tests: []
 
@@ -109,9 +111,9 @@ commands:
   dev:
     - "pnpm dev"
   mcp_server:
-    - "pnpm --filter @guidedpatch/mcp-server dev"
+    - "pnpm --filter @duckwalk/mcp-server dev"
   vscode_extension:
-    - "pnpm --filter guidedpatch-vscode-extension dev"
+    - "pnpm --filter duckwalk-vscode-extension dev"
 
 boundary_rules:
   architecture_flow:

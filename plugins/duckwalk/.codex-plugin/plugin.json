@@ -1,0 +1,29 @@
+{
+  "name": "duckwalk",
+  "version": "0.1.0+codex.20260618065330",
+  "description": "Codex plugin for duckWalk guided implementation, PR review playback, and Pathfinder codebase walkthroughs.",
+  "author": {
+    "name": "duckWalk"
+  },
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "duckWalk",
+    "shortDescription": "Create guided implementation, PR review, and Pathfinder walkthrough sessions from Codex.",
+    "longDescription": "Use duckWalk inside Codex to create structured implementation recipes, generate PR review playback sessions, generate Pathfinder codebase walkthroughs, inspect the current guided session, and update guided step state through the repo's MCP server.",
+    "developerName": "duckWalk",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Create a duckWalk implementation session for this task.",
+      "Create a duckWalk PR review playback session for these changes.",
+      "Use Pathfinder to explain how this architecture flow works in the codebase.",
+      "Show the current duckWalk session and state for this workspace."
+    ],
+    "brandColor": "#2D9CDB"
+  }
+}

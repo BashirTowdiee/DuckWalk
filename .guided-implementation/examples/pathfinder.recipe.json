@@ -1,0 +1,61 @@
+{
+  "id": "example-pathfinder-session",
+  "mode": "codebase_walkthrough",
+  "title": "Trace backend authentication flow",
+  "summary": "Shows how a protected request moves from auth middleware into token validation and route access checks.",
+  "question": "How does authentication work in this backend project?",
+  "createdAt": "2026-06-18T00:00:00.000Z",
+  "steps": [
+    {
+      "id": "walkthrough-step-1",
+      "order": 1,
+      "mode": "codebase_walkthrough",
+      "file": {
+        "path": "src/auth/middleware.ts",
+        "exists": true
+      },
+      "location": {
+        "strategy": "range",
+        "range": {
+          "startLine": 1,
+          "startCharacter": 0,
+          "endLine": 8,
+          "endCharacter": 0
+        }
+      },
+      "explanation": {
+        "title": "Start in the auth middleware",
+        "what": "The middleware reads the bearer token from the incoming request.",
+        "why": "Every protected route enters the auth flow through this touchpoint.",
+        "how": "The authorization header is parsed and its token is forwarded to the downstream validation service.",
+        "impact": "Requests without a usable token fail before route handlers execute."
+      },
+      "snippet": "export async function authMiddleware(request, reply) {\n  const authHeader = request.headers.authorization;\n  const token = authHeader?.replace('Bearer ', '');\n}\n"
+    },
+    {
+      "id": "walkthrough-step-2",
+      "order": 2,
+      "mode": "codebase_walkthrough",
+      "file": {
+        "path": "src/auth/service.ts",
+        "exists": true
+      },
+      "location": {
+        "strategy": "range",
+        "range": {
+          "startLine": 10,
+          "startCharacter": 0,
+          "endLine": 21,
+          "endCharacter": 0
+        }
+      },
+      "explanation": {
+        "title": "Validate and decode the token",
+        "what": "The auth service verifies the token and extracts the user identity.",
+        "why": "Downstream authorization decisions depend on a trusted user context.",
+        "how": "The service calls the token verifier, decodes claims, and returns the resolved actor for the request."
+      },
+      "snippet": "export async function resolveAuthenticatedUser(token) {\n  const payload = await verifyToken(token);\n  return { userId: payload.sub, roles: payload.roles };\n}\n"
+    }
+  ]
+}

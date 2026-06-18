@@ -1,10 +1,10 @@
 {
-  "name": "guidedpatch-vscode-extension",
-  "displayName": "GuidedPatch",
-  "description": "Guided implementation and PR review playback for VS Code.",
+  "name": "duckwalk-vscode-extension",
+  "displayName": "duckWalk",
+  "description": "Guided implementation, PR review playback, and Pathfinder walkthroughs for VS Code.",
   "version": "0.1.0",
   "private": true,
-  "publisher": "guidedpatch",
+  "publisher": "duckwalk",
   "type": "commonjs",
   "engines": {
     "vscode": "^1.96.0"
@@ -12,52 +12,63 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "onStartupFinished",
-    "onView:guidedPatch.sidebar",
-    "onCommand:guidedPatch.startSession"
+    "onView:duckWalk.sidebar",
+    "onCommand:duckWalk.startSession"
   ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "guidedPatch",
-          "title": "GuidedPatch",
-          "icon": "media/guidedpatch-icon.svg"
+          "id": "duckWalk",
+          "title": "duckWalk",
+          "icon": "media/duckwalk-icon.svg"
         }
       ]
     },
     "views": {
-      "guidedPatch": [
+      "duckWalk": [
         {
-          "id": "guidedPatch.sidebar",
-          "name": "GuidedPatch",
+          "id": "duckWalk.sidebar",
+          "name": "duckWalk",
           "type": "webview"
         }
       ]
     },
     "commands": [
       {
-        "command": "guidedPatch.startSession",
-        "title": "GuidedPatch: Start Session"
+        "command": "duckWalk.startSession",
+        "title": "duckWalk: Start Session"
       },
       {
-        "command": "guidedPatch.nextStep",
-        "title": "GuidedPatch: Next Step"
+        "command": "duckWalk.nextStep",
+        "title": "duckWalk: Next Step"
       },
       {
-        "command": "guidedPatch.previousStep",
-        "title": "GuidedPatch: Previous Step"
+        "command": "duckWalk.previousStep",
+        "title": "duckWalk: Previous Step"
       },
       {
-        "command": "guidedPatch.refreshSession",
-        "title": "GuidedPatch: Refresh Session"
+        "command": "duckWalk.refreshSession",
+        "title": "duckWalk: Refresh Session"
       },
       {
-        "command": "guidedPatch.completeStep",
-        "title": "GuidedPatch: Mark Step Complete"
+        "command": "duckWalk.completeStep",
+        "title": "duckWalk: Mark Step Complete"
       },
       {
-        "command": "guidedPatch.togglePlayback",
-        "title": "GuidedPatch: Toggle Playback"
+        "command": "duckWalk.undoCompleteStep",
+        "title": "duckWalk: Undo Complete Step"
+      },
+      {
+        "command": "duckWalk.togglePlayback",
+        "title": "duckWalk: Toggle Playback"
+      }
+    ],
+    "keybindings": [
+      {
+        "key": "tab",
+        "command": "duckWalk.dismissSuggestionWidget",
+        "when": "duckWalk.disableTabAccept && suggestWidgetVisible && textInputFocus"
       }
     ]
   },
@@ -68,8 +79,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@guidedpatch/core": "workspace:*",
-    "@guidedpatch/schema": "workspace:*",
+    "@duckwalk/core": "workspace:*",
+    "@duckwalk/schema": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   }

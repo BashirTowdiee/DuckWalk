@@ -1,4 +1,4 @@
-# GuidedPatch Roadmap
+# DuckWalk Roadmap
 
 This roadmap is organised by product maturity rather than dates.
 
@@ -40,17 +40,18 @@ Deliverables:
 
 Outcome:
 
-Any compatible agent can produce a recipe that GuidedPatch understands.
+Any compatible agent can produce a recipe that DuckWalk understands.
 
 ## Milestone 2: MCP recipe intake
 
-Goal: Let Codex and other harnesses create GuidedPatch sessions.
+Goal: Let Codex and other harnesses create DuckWalk sessions.
 
 Deliverables:
 
 - MCP server
 - `create_guided_session`
 - `create_pr_review_session`
+- `pathfinder`
 - `get_guided_session`
 - `update_step_status`
 - Schema validation
@@ -60,7 +61,8 @@ Deliverables:
 
 Outcome:
 
-Codex App, Codex CLI, or another MCP-capable harness can create guided implementation and PR review sessions.
+Codex App, Codex CLI, or another MCP-capable harness can create guided implementation, PR review,
+and codebase walkthrough sessions.
 
 ## Milestone 3: VS Code extension shell
 
@@ -118,7 +120,7 @@ Deliverables:
 
 Outcome:
 
-The user can implement generated code manually while GuidedPatch checks progress.
+The user can implement generated code manually while DuckWalk checks progress.
 
 ## Milestone 6: PR review playback
 
@@ -138,6 +140,25 @@ Deliverables:
 Outcome:
 
 The user can press play and walk through a PR or local diff step by step.
+
+## Milestone 6.5: Pathfinder codebase walkthroughs
+
+Goal: Turn architecture questions into guided codebase stories.
+
+Deliverables:
+
+- `codebase_walkthrough` session mode
+- `pathfinder` MCP tool
+- Question-driven walkthrough schema
+- Sidebar walkthrough rendering
+- File/range jump support for walkthrough steps
+- Walkthrough markdown output
+- Example architecture prompts and recipes
+
+Outcome:
+
+The user can ask how a concrete flow works in a codebase and step through the linked touchpoints
+inside duckWalk.
 
 ## Milestone 7: MVP polish
 
@@ -175,7 +196,7 @@ Deliverables:
 
 Outcome:
 
-GuidedPatch becomes less brittle and more developer-friendly.
+DuckWalk becomes less brittle and more developer-friendly.
 
 ## Milestone 9: GitHub PR integration
 
@@ -193,7 +214,7 @@ Deliverables:
 
 Outcome:
 
-GuidedPatch can be used to understand and explain GitHub PRs.
+DuckWalk can be used to understand and explain GitHub PRs.
 
 ## Milestone 10: Speech-ready pair programming
 
@@ -211,7 +232,7 @@ Deliverables:
 
 Outcome:
 
-GuidedPatch starts to feel like an AI pair programmer that explains code changes aloud.
+DuckWalk starts to feel like an AI pair programmer that explains code changes aloud.
 
 ## Milestone 11: Team workflows
 
@@ -229,11 +250,11 @@ Deliverables:
 
 Outcome:
 
-Teams can use GuidedPatch for onboarding, async reviews, and learning codebases.
+Teams can use DuckWalk for onboarding, async reviews, and learning codebases.
 
 ## Milestone 12: Multi-harness ecosystem
 
-Goal: Make GuidedPatch usable from many agent harnesses.
+Goal: Make DuckWalk usable from many agent harnesses.
 
 Deliverables:
 
@@ -247,13 +268,12 @@ Deliverables:
 
 Outcome:
 
-GuidedPatch becomes an agent-agnostic guided coding layer.
+DuckWalk becomes an agent-agnostic guided coding layer.
 
 ## Future ideas
 
 Potential future features:
 
-- Codebase walkthrough mode
 - Test failure repair walkthroughs
 - Migration recipes
 - Refactor recipes

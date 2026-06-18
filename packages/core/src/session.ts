@@ -1,4 +1,4 @@
-import type { GuidedSession } from "@guidedpatch/schema";
+import type { GuidedSession } from "@duckwalk/schema";
 
 export function getOrderedSteps(session: GuidedSession) {
   return [...session.steps].sort((left, right) => left.order - right.order);

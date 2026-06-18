@@ -2,9 +2,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run GuidedPatch Extension",
+      "name": "Run DuckWalk Extension",
       "type": "extensionHost",
       "request": "launch",
+      "preLaunchTask": "duckWalk: build extension",
       "runtimeExecutable": "${execPath}",
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}/apps/vscode-extension",

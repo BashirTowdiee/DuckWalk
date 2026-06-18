@@ -1,0 +1,20 @@
+{
+  "name": "duckwalk-local",
+  "interface": {
+    "displayName": "Duck Walk Local"
+  },
+  "plugins": [
+    {
+      "name": "duckwalk",
+      "source": {
+        "source": "local",
+        "path": "./plugins/duckwalk"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

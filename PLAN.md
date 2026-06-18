@@ -1,6 +1,6 @@
-# GuidedPatch Plan
+# DuckWalk Plan
 
-This document defines the initial build plan for GuidedPatch.
+This document defines the initial build plan for DuckWalk.
 
 ## Objective
 
@@ -37,7 +37,7 @@ The following are deliberately out of scope:
 Codex App / Codex CLI / other harness
         |
         v
-GuidedPatch MCP server
+DuckWalk MCP server
         |
         v
 .guided-implementation/current.recipe.json
@@ -45,7 +45,7 @@ GuidedPatch MCP server
 .guided-implementation/state.json
         |
         v
-GuidedPatch VS Code extension
+DuckWalk VS Code extension
 ```
 
 ## Packages
@@ -272,16 +272,16 @@ Output:
 Implement these commands:
 
 ```txt
-GuidedPatch: Load Current Recipe
-GuidedPatch: Start Session
-GuidedPatch: Go To Next Step
-GuidedPatch: Go To Previous Step
-GuidedPatch: Show Current Step
-GuidedPatch: Revalidate Current Step
-GuidedPatch: Create Missing File
-GuidedPatch: Open Markdown Recipe
-GuidedPatch: Start Review Playback
-GuidedPatch: Pause Review Playback
+DuckWalk: Load Current Recipe
+DuckWalk: Start Session
+DuckWalk: Go To Next Step
+DuckWalk: Go To Previous Step
+DuckWalk: Show Current Step
+DuckWalk: Revalidate Current Step
+DuckWalk: Create Missing File
+DuckWalk: Open Markdown Recipe
+DuckWalk: Start Review Playback
+DuckWalk: Pause Review Playback
 ```
 
 ## Implementation phases
@@ -424,7 +424,7 @@ Use a small Fastify repo.
 Prompt Codex:
 
 ```txt
-Use the GuidedPatch MCP server.
+Use the DuckWalk MCP server.
 
 Do not edit source files directly.
 

@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-export const sessionModeSchema = z.enum(["implementation", "pr_review"]);
+export const sessionModeSchema = z.enum([
+  "implementation",
+  "pr_review",
+  "codebase_walkthrough"
+]);
 export const stepStatusSchema = z.enum(["pending", "active", "complete", "skipped"]);
 
 export const narrationSchema = z.object({
@@ -12,6 +16,7 @@ export const stepExplanationSchema = z.object({
   title: z.string().min(1),
   what: z.string().min(1),
   why: z.string().min(1),
+  how: z.string().min(1).optional(),
   impact: z.string().min(1).optional(),
   risk: z.string().min(1).optional(),
   narration: narrationSchema.optional()
@@ -79,7 +84,34 @@ export const prReviewStepSchema = baseStepSchema.extend({
   review: reviewPlaybackSchema
 });
 
-export const guidedStepSchema = z.union([implementationStepSchema, prReviewStepSchema]);
+export const codebaseWalkthroughStepSchema = baseStepSchema
+  .extend({
+    mode: z.literal("codebase_walkthrough"),
+    snippet: z.string().min(1)
+  })
+  .superRefine((step, context) => {
+    if (step.location.strategy !== "range" || !step.location.range) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["location"],
+        message: "codebase walkthrough steps require a location range"
+      });
+    }
+
+    if (!step.explanation.how) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["explanation", "how"],
+        message: "codebase walkthrough steps require explanation.how"
+      });
+    }
+  });
+
+export const guidedStepSchema = z.union([
+  implementationStepSchema,
+  prReviewStepSchema,
+  codebaseWalkthroughStepSchema
+]);
 
 export const guidedSessionSchema = z
   .object({
@@ -88,9 +120,18 @@ export const guidedSessionSchema = z
     title: z.string().min(1),
     summary: z.string().min(1),
     createdAt: z.string().min(1),
+    question: z.string().min(1).optional(),
     steps: z.array(guidedStepSchema).min(1)
   })
   .superRefine((session, context) => {
+    if (session.mode === "codebase_walkthrough" && !session.question) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["question"],
+        message: "codebase walkthrough sessions require a question"
+      });
+    }
+
     session.steps.forEach((step, index) => {
       if (step.mode !== session.mode) {
         context.addIssue({
@@ -112,5 +153,6 @@ export type StepValidation = z.infer<typeof stepValidationSchema>;
 export type ReviewPlayback = z.infer<typeof reviewPlaybackSchema>;
 export type ImplementationStep = z.infer<typeof implementationStepSchema>;
 export type PrReviewStep = z.infer<typeof prReviewStepSchema>;
+export type CodebaseWalkthroughStep = z.infer<typeof codebaseWalkthroughStepSchema>;
 export type GuidedStep = z.infer<typeof guidedStepSchema>;
 export type GuidedSession = z.infer<typeof guidedSessionSchema>;

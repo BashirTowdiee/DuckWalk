@@ -79,4 +79,78 @@ describe("guidedSessionSchema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("accepts a valid codebase walkthrough session", () => {
+    const result = guidedSessionSchema.parse({
+      id: "walkthrough-1",
+      mode: "codebase_walkthrough",
+      title: "Trace authentication flow",
+      summary: "Shows how auth moves from request entry to policy checks.",
+      question: "How does authentication work in this backend?",
+      createdAt: "2026-06-18T00:00:00.000Z",
+      steps: [
+        {
+          id: "walk-step-1",
+          order: 1,
+          mode: "codebase_walkthrough",
+          file: {
+            path: "src/auth/middleware.ts"
+          },
+          location: {
+            strategy: "range",
+            range: {
+              startLine: 3,
+              startCharacter: 0,
+              endLine: 12,
+              endCharacter: 0
+            }
+          },
+          explanation: {
+            title: "Start at the auth middleware",
+            what: "This middleware extracts the bearer token.",
+            why: "Every protected route passes through this entry point first.",
+            how: "It reads the Authorization header and passes the parsed token downstream."
+          },
+          snippet:
+            "export async function authMiddleware(request, reply) {\n  const authHeader = request.headers.authorization;\n}\n"
+        }
+      ]
+    });
+
+    expect(result.question).toBe("How does authentication work in this backend?");
+    expect(result.steps).toHaveLength(1);
+  });
+
+  it("rejects a walkthrough session without question, how, or range", () => {
+    const result = guidedSessionSchema.safeParse({
+      id: "walkthrough-2",
+      mode: "codebase_walkthrough",
+      title: "Broken walkthrough",
+      summary: "Missing required walkthrough fields.",
+      createdAt: "2026-06-18T00:00:00.000Z",
+      steps: [
+        {
+          id: "walk-step-1",
+          order: 1,
+          mode: "codebase_walkthrough",
+          file: {
+            path: "src/auth/middleware.ts"
+          },
+          location: {
+            strategy: "line",
+            line: 3
+          },
+          explanation: {
+            title: "Start at the auth middleware",
+            what: "This middleware extracts the bearer token.",
+            why: "Every protected route passes through this entry point first."
+          },
+          snippet:
+            "export async function authMiddleware(request, reply) {\n  const authHeader = request.headers.authorization;\n}\n"
+        }
+      ]
+    });
+
+    expect(result.success).toBe(false);
+  });
 });

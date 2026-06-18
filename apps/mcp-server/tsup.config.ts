@@ -7,5 +7,5 @@ export default defineConfig({
   format: ["esm"],
   sourcemap: true,
   target: "node18",
-  noExternal: [/^@guidedpatch\//]
+  noExternal: [/^@duckwalk\//]
 });

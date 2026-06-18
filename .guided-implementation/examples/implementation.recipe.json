@@ -26,7 +26,7 @@
           "short": "This step creates reusable auth middleware."
         }
       },
-      "ghostCode": "import type { FastifyReply, FastifyRequest } from 'fastify';\n\nexport async function authMiddleware(request: FastifyRequest, reply: FastifyReply) {\n  const authHeader = request.headers.authorization;\n\n  if (!authHeader) {\n    return reply.code(401).send({ error: 'Missing authorization header' });\n  }\n}\n",
+      "ghostCode": "import type { FastifyReply, FastifyRequest } from 'fastify';\n\n// Rejects unauthenticated requests before route handlers run.\nexport async function authMiddleware(request: FastifyRequest, reply: FastifyReply) {\n  const authHeader = request.headers.authorization;\n\n  // Important: fail fast so protected handlers never run without auth.\n  if (!authHeader) {\n    return reply.code(401).send({ error: 'Missing authorization header' });\n  }\n}\n",
       "validation": {
         "type": "normalised_match"
       }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { GuidedStep } from "@guidedpatch/schema";
+import type { GuidedStep } from "@duckwalk/schema";
 
 import { normaliseCode, validateStepAgainstContent } from "./validation";
 

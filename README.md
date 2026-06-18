@@ -1,8 +1,8 @@
-# GuidedPatch
+# duckWalk
 
-GuidedPatch is a VS Code extension and MCP server for agent-generated, step-by-step code implementation and PR review playback.
+duckWalk is a VS Code extension and MCP server for agent-generated, step-by-step code implementation, PR review playback, and question-driven codebase walkthroughs.
 
-Instead of letting an AI agent directly edit files, GuidedPatch turns the agent's output into a structured implementation recipe. The editor then guides the developer through each change using numbered steps, explanations, ghost code, file navigation, and validation.
+Instead of letting an AI agent directly edit files or answer architecture questions with loose prose, duckWalk turns the agent's output into a structured guided session. The editor then guides the developer through each change or touchpoint using numbered steps, explanations, code snippets, file navigation, and validation where relevant.
 
 The goal is to make AI-assisted coding more understandable, reviewable, and deliberate.
 
@@ -10,7 +10,7 @@ The goal is to make AI-assisted coding more understandable, reviewable, and deli
 
 A coding agent such as Codex, Claude Code, Cursor, Aider, or another harness creates a structured `GuidedSession`.
 
-GuidedPatch then renders that session inside VS Code.
+duckWalk then renders that session inside VS Code.
 
 ```txt
 Agent / Harness
@@ -55,6 +55,24 @@ The user can press play and the extension moves through the changes step by step
 
 A sidebar lists all changes. Clicking a row jumps to the relevant file and line.
 
+### 3. Pathfinder walkthrough mode
+
+The agent answers a concrete codebase question such as "how does authentication work?" by
+authoring an ordered walkthrough of the real touchpoints in the repo.
+
+Each step includes:
+
+- Global step number
+- File path
+- Exact code range
+- What the touchpoint does
+- Why it matters in the flow
+- How control or data moves to the next touchpoint
+- Read-only code snippet for the explanation
+
+The user moves through the walkthrough manually in the sidebar and sees how the architecture flow
+links together across files.
+
 ## MVP scope
 
 The MVP includes:
@@ -71,6 +89,7 @@ The MVP includes:
 - Missing-file handling
 - Normalised text validation
 - PR review playback from local git diff
+- Pathfinder codebase walkthroughs
 
 The MVP does not include:
 
@@ -88,12 +107,15 @@ Speech is not part of the MVP, but the schema should be narration-ready so it ca
 
 ## Intended agent workflow
 
-The user asks Codex App, Codex CLI, or another harness to create a guided implementation session.
+The user asks Codex App, Codex CLI, or another harness to create a guided implementation session,
+PR review playback, or Pathfinder walkthrough.
 
-The harness uses the GuidedPatch MCP server and calls a tool such as:
+The harness uses the duckWalk MCP server and calls a tool such as:
 
 ```txt
 create_guided_session
+create_pr_review_session
+pathfinder
 ```
 
 The MCP server validates the session and writes:
@@ -105,7 +127,11 @@ The MCP server validates the session and writes:
   state.json
 ```
 
-The VS Code extension loads the recipe and guides the user through the implementation.
+The VS Code extension loads the recipe and guides the user through the implementation,
+review playback, or walkthrough.
+
+When a session is created in a target project, duckWalk also ensures that project's
+`.gitignore` includes `.guided-implementation/` unless an equivalent rule already exists.
 
 ## Setup
 
@@ -150,7 +176,7 @@ pnpm lint
 Development mode:
 
 ```bash
-pnpm --filter @guidedpatch/mcp-server dev
+pnpm --filter @duckwalk/mcp-server dev
 ```
 
 Built stdio server:
@@ -163,6 +189,7 @@ The MCP server exposes these tools over stdio:
 
 - `create_guided_session`
 - `create_pr_review_session`
+- `pathfinder`
 - `get_guided_session`
 - `update_step_status`
 
@@ -171,20 +198,20 @@ The MCP server exposes these tools over stdio:
 Watch mode:
 
 ```bash
-pnpm --filter guidedpatch-vscode-extension dev
+pnpm --filter duckwalk-vscode-extension dev
 ```
 
 One-off build:
 
 ```bash
-pnpm --filter guidedpatch-vscode-extension build
+pnpm --filter duckwalk-vscode-extension build
 ```
 
 ## Use
 
 ### Expected runtime files
 
-GuidedPatch reads and writes session state in:
+duckWalk reads and writes session state in:
 
 ```txt
 .guided-implementation/
@@ -199,9 +226,9 @@ The active workspace root in VS Code must contain `.guided-implementation/`.
 ### Normal workflow
 
 1. Start the MCP server from your harness or MCP client.
-2. Call `create_guided_session` or `create_pr_review_session` with a full `GuidedSession`.
-3. Open the target project in VS Code with the GuidedPatch extension available.
-4. Open the GuidedPatch sidebar.
+2. Call `create_guided_session`, `create_pr_review_session`, or `pathfinder` with a full `GuidedSession`.
+3. Open the target project in VS Code with the duckWalk extension available.
+4. Open the duckWalk sidebar.
 5. Start the session and move through steps with `Start Session`, `Next`, `Previous`, or direct step selection.
 
 ### Quick local smoke test
@@ -211,13 +238,13 @@ If you want to test the extension UI without wiring an external harness yet:
 1. Build the repo with `pnpm build`.
 2. Copy one of the example recipes to `.guided-implementation/current.recipe.json`.
 3. Open the repo in VS Code.
-4. Load the GuidedPatch sidebar and start the session.
+4. Load the duckWalk sidebar and start the session.
 
 Example commands:
 
 ```bash
 mkdir -p .guided-implementation
-cp .guided-implementation/examples/implementation.recipe.json .guided-implementation/current.recipe.json
+cp .guided-implementation/examples/pathfinder.recipe.json .guided-implementation/current.recipe.json
 ```
 
 When you start the session, the extension can create `state.json` automatically.
@@ -238,12 +265,43 @@ For local extension development:
 Any MCP-capable harness can point at the built stdio server command:
 
 ```txt
-node /absolute/path/to/guidedPatch/apps/mcp-server/dist/server.js
+node /absolute/path/to/duckwalk/apps/mcp-server/dist/server.js
 ```
 
 Use the example recipes in `.guided-implementation/examples/` as starter payload references when shaping `GuidedSession` inputs.
 
-## Example guided step
+## Example Pathfinder step
+
+```json
+{
+  "id": "walkthrough-step-1",
+  "order": 1,
+  "mode": "codebase_walkthrough",
+  "file": {
+    "path": "src/auth/middleware.ts",
+    "exists": true
+  },
+  "location": {
+    "strategy": "range",
+    "range": {
+      "startLine": 1,
+      "startCharacter": 0,
+      "endLine": 12,
+      "endCharacter": 0
+    }
+  },
+  "explanation": {
+    "title": "Start at the auth middleware",
+    "what": "This middleware extracts the bearer token from the request.",
+    "why": "Every protected route enters the authentication flow here.",
+    "how": "The request header is parsed and the token is passed to the downstream auth service.",
+    "impact": "Requests without a token fail before route handlers run."
+  },
+  "snippet": "export async function authMiddleware(request, reply) {\\n  const authHeader = request.headers.authorization;\\n}\\n"
+}
+```
+
+## Example implementation step
 
 ```json
 {
@@ -294,7 +352,7 @@ Monorepo:        Turborepo
 ## Proposed repository structure
 
 ```txt
-guidedpatch/
+duckwalk/
   apps/
     vscode-extension/
       src/
@@ -349,7 +407,7 @@ guidedpatch/
 
 ## Future direction
 
-GuidedPatch can later support:
+duckWalk can later support:
 
 - TTS pair-programming playback
 - AST-based validation

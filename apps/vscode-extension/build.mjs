@@ -25,7 +25,7 @@ const webviewConfig = {
   },
   entryPoints: ["src/sidebar/webview.tsx"],
   format: "iife",
-  globalName: "GuidedPatchSidebar",
+  globalName: "DuckWalkSidebar",
   outfile: "dist/webview.js",
   platform: "browser",
   target: "es2020"
@@ -35,7 +35,7 @@ if (isWatch) {
   const extensionContext = await esbuild.context(extensionConfig);
   const webviewContext = await esbuild.context(webviewConfig);
   await Promise.all([extensionContext.watch(), webviewContext.watch()]);
-  console.log("[guidedpatch-vscode-extension] watching");
+  console.log("[duckwalk-vscode-extension] watching");
 } else {
   await Promise.all([esbuild.build(extensionConfig), esbuild.build(webviewConfig)]);
 }

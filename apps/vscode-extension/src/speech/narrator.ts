@@ -1,4 +1,4 @@
-import type { GuidedStep } from "@guidedpatch/schema";
+import type { GuidedStep } from "@duckwalk/schema";
 
 export interface StepNarrator {
   speak(step: GuidedStep): Promise<void>;

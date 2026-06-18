@@ -2,45 +2,102 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
+  extractValidationWindow,
+  getValidationText,
   normaliseCode,
   readGuidedState,
   readGuidedSession,
+  reopenGuidedStep,
   resolveGuidedPaths,
   setActiveStep,
+  undoGuidedStepCompletion,
   updateGuidedStepStatus,
+  validateExpectedCode,
   validateStepAgainstContent
-} from "@guidedpatch/core";
-import type { GuidedSessionState } from "@guidedpatch/core";
-import type { GuidedRange, GuidedSession, GuidedStep } from "@guidedpatch/schema";
+} from "@duckwalk/core";
+import type { GuidedSessionState } from "@duckwalk/core";
+import type { GuidedRange, GuidedSession, GuidedStep } from "@duckwalk/schema";
 import * as vscode from "vscode";
 
-import { GuidedPatchViewProvider } from "./sidebar/GuidedPatchViewProvider";
-import type { SidebarController, SidebarMessage, WebviewState } from "./sidebar/types";
+import { buildGuidancePreviewFromAnchor, matchGhostCodePrefix } from "./guidance-matching";
+import { adaptCodeIndentation, type IndentationPreference } from "./indentation";
+import { DuckWalkViewProvider } from "./sidebar/DuckWalkViewProvider";
+import type {
+  GuidanceMode,
+  SidebarController,
+  SidebarMessage,
+  WebviewState
+} from "./sidebar/types";
 import { NoopStepNarrator } from "./speech/narrator";
 
-class GuidedPatchController implements SidebarController, vscode.Disposable {
+type ImplementationStep = Extract<GuidedStep, { mode: "implementation" }>;
+
+class DuckWalkPreviewProvider implements vscode.TextDocumentContentProvider {
+  private readonly onDidChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
+  readonly onDidChange = this.onDidChangeEmitter.event;
+  private readonly contents = new Map<string, string>();
+  private readonly highlightRanges = new Map<string, vscode.Range[]>();
+
+  provideTextDocumentContent(uri: vscode.Uri): string {
+    return this.contents.get(uri.toString()) ?? "No active duckWalk preview.";
+  }
+
+  update(uri: vscode.Uri, content: string, ranges: vscode.Range[] = []): void {
+    this.contents.set(uri.toString(), content);
+    this.highlightRanges.set(uri.toString(), ranges);
+    this.onDidChangeEmitter.fire(uri);
+  }
+
+  getHighlightRanges(uri: vscode.Uri): vscode.Range[] {
+    return this.highlightRanges.get(uri.toString()) ?? [];
+  }
+
+  dispose(): void {
+    this.onDidChangeEmitter.dispose();
+    this.contents.clear();
+    this.highlightRanges.clear();
+  }
+}
+
+class DuckWalkController implements SidebarController, vscode.Disposable {
   private readonly narrator = new NoopStepNarrator();
-  private readonly ghostDecorationType = vscode.window.createTextEditorDecorationType({
-    after: {
-      color: new vscode.ThemeColor("editorGhostText.foreground"),
-      fontStyle: "italic",
-      textDecoration: "none; white-space: pre;"
-    }
-  });
   private readonly highlightDecorationType = vscode.window.createTextEditorDecorationType({
     backgroundColor: new vscode.ThemeColor("editor.rangeHighlightBackground"),
     border: "1px solid rgba(128, 128, 128, 0.35)"
+  });
+  private readonly ghostTextDecorationType = vscode.window.createTextEditorDecorationType({
+    rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+    after: {
+      color: new vscode.ThemeColor("editorGhostText.foreground"),
+      fontStyle: "italic",
+      margin: "0 0 0 0.2ch"
+    }
+  });
+  private readonly diffPreviewDecorationType = vscode.window.createTextEditorDecorationType({
+    backgroundColor: new vscode.ThemeColor("diffEditor.insertedLineBackground"),
+    border: "1px solid rgba(90, 200, 120, 0.25)"
   });
   private readonly disposables: vscode.Disposable[] = [];
   private session: GuidedSession | null = null;
   private guidedState: GuidedSessionState | null = null;
   private activeStepId: string | null = null;
   private isPlaying = false;
+  private guidanceMode: GuidanceMode = "diff";
+  private tabAcceptEnabled = false;
   private playbackTimer: NodeJS.Timeout | null = null;
-  private viewProvider: GuidedPatchViewProvider | null = null;
+  private viewProvider: DuckWalkViewProvider | null = null;
   private lastDecoratedEditor: vscode.TextEditor | null = null;
+  private suggestRefreshTimer: NodeJS.Timeout | null = null;
+  private hoverRefreshTimer: NodeJS.Timeout | null = null;
+  private peekRefreshTimer: NodeJS.Timeout | null = null;
+  private diffRefreshTimer: NodeJS.Timeout | null = null;
+  private autoCompleteTimer: NodeJS.Timeout | null = null;
 
-  constructor(private readonly workspaceRoot: string, private readonly workspaceUri: vscode.Uri) {}
+  constructor(
+    private readonly workspaceRoot: string,
+    private readonly workspaceUri: vscode.Uri,
+    private readonly previewProvider: DuckWalkPreviewProvider
+  ) {}
 
   async initialize(context: vscode.ExtensionContext): Promise<void> {
     this.disposables.push(
@@ -54,6 +111,7 @@ class GuidedPatchController implements SidebarController, vscode.Disposable {
       }),
       vscode.window.onDidChangeActiveTextEditor((editor) => {
         if (editor) {
+          this.applyDiffPreviewDecorations(editor);
           void this.applyStepDecorations(editor);
         }
       })
@@ -77,18 +135,40 @@ class GuidedPatchController implements SidebarController, vscode.Disposable {
     );
 
     context.subscriptions.push(this);
+    this.syncTabAcceptContext();
     await this.reloadSession();
   }
 
-  setViewProvider(provider: GuidedPatchViewProvider) {
+  setViewProvider(provider: DuckWalkViewProvider) {
     this.viewProvider = provider;
   }
 
   dispose(): void {
     this.stopPlayback();
     this.clearDecorations();
-    this.ghostDecorationType.dispose();
     this.highlightDecorationType.dispose();
+    this.ghostTextDecorationType.dispose();
+    this.diffPreviewDecorationType.dispose();
+    if (this.suggestRefreshTimer) {
+      clearTimeout(this.suggestRefreshTimer);
+      this.suggestRefreshTimer = null;
+    }
+    if (this.hoverRefreshTimer) {
+      clearTimeout(this.hoverRefreshTimer);
+      this.hoverRefreshTimer = null;
+    }
+    if (this.peekRefreshTimer) {
+      clearTimeout(this.peekRefreshTimer);
+      this.peekRefreshTimer = null;
+    }
+    if (this.diffRefreshTimer) {
+      clearTimeout(this.diffRefreshTimer);
+      this.diffRefreshTimer = null;
+    }
+    if (this.autoCompleteTimer) {
+      clearTimeout(this.autoCompleteTimer);
+      this.autoCompleteTimer = null;
+    }
     this.disposables.forEach((disposable) => disposable.dispose());
   }
 
@@ -106,11 +186,23 @@ class GuidedPatchController implements SidebarController, vscode.Disposable {
       case "toggle-playback":
         this.togglePlayback();
         break;
+      case "set-guidance-mode":
+        this.setGuidanceMode(message.mode);
+        break;
+      case "toggle-tab-accept":
+        this.toggleTabAccept();
+        break;
       case "refresh-session":
         await this.reloadSession();
         break;
       case "complete-step":
         await this.completeActiveStep();
+        break;
+      case "undo-complete-step":
+        await this.undoCompleteActiveStep();
+        break;
+      case "set-step-completion":
+        await this.setStepCompletion(message.stepId, message.complete);
         break;
       case "select-step":
         await this.activateStep(message.stepId);
@@ -156,6 +248,7 @@ class GuidedPatchController implements SidebarController, vscode.Disposable {
       }
     }
 
+    await this.maybeAutoCompleteActiveStep();
     await this.publishState(null);
   }
 
@@ -195,6 +288,7 @@ class GuidedPatchController implements SidebarController, vscode.Disposable {
     this.guidedState = await setActiveStep(this.workspaceRoot, this.session, step.id);
     this.activeStepId = step.id;
     await this.revealStep(step);
+    await this.maybeAutoCompleteActiveStep();
     await this.publishState(null);
   }
 
@@ -206,6 +300,50 @@ class GuidedPatchController implements SidebarController, vscode.Disposable {
 
     this.guidedState = await updateGuidedStepStatus(this.workspaceRoot, this.session, step.id, "complete");
     this.activeStepId = this.guidedState.activeStepId;
+
+    const editor = vscode.window.activeTextEditor;
+    if (editor) {
+      await this.applyStepDecorations(editor);
+    }
+
+    await this.publishState(null);
+  }
+
+  private async undoCompleteActiveStep(): Promise<void> {
+    const step = this.getActiveStep();
+    if (!step || step.mode !== "implementation" || !this.session) {
+      return;
+    }
+
+    this.guidedState = await undoGuidedStepCompletion(this.workspaceRoot, this.session, step.id);
+    this.activeStepId = this.guidedState.activeStepId;
+    await this.revealStep(step);
+    await this.publishState(null);
+  }
+
+  private async setStepCompletion(stepId: string, complete: boolean): Promise<void> {
+    if (!this.session) {
+      return;
+    }
+
+    const step = this.session.steps.find((candidate) => candidate.id === stepId);
+    if (!step || step.mode !== "implementation") {
+      return;
+    }
+
+    if (complete) {
+      this.guidedState = await updateGuidedStepStatus(
+        this.workspaceRoot,
+        this.session,
+        step.id,
+        "complete"
+      );
+      this.activeStepId = this.guidedState.activeStepId;
+    } else {
+      this.guidedState = await reopenGuidedStep(this.workspaceRoot, this.session, step.id);
+      this.activeStepId = step.id;
+      await this.revealStep(step);
+    }
 
     const editor = vscode.window.activeTextEditor;
     if (editor) {
@@ -232,12 +370,48 @@ class GuidedPatchController implements SidebarController, vscode.Disposable {
     void this.publishState(null);
   }
 
+  private setGuidanceMode(mode: GuidanceMode) {
+    if (this.guidanceMode === mode) {
+      return;
+    }
+
+    this.guidanceMode = mode;
+    this.syncTabAcceptContext();
+    void this.refreshVisibleGuidance();
+    void this.publishState(null);
+  }
+
+  private toggleTabAccept() {
+    this.tabAcceptEnabled = !this.tabAcceptEnabled;
+    this.syncTabAcceptContext();
+    void this.publishState(null);
+  }
+
   private stopPlayback() {
     this.isPlaying = false;
     if (this.playbackTimer) {
       clearInterval(this.playbackTimer);
       this.playbackTimer = null;
     }
+  }
+
+  private syncTabAcceptContext() {
+    void vscode.commands.executeCommand(
+      "setContext",
+      "duckWalk.disableTabAccept",
+      this.guidanceMode === "suggest" && !this.tabAcceptEnabled
+    );
+  }
+
+  private async refreshVisibleGuidance(): Promise<void> {
+    await vscode.commands.executeCommand("hideSuggestWidget");
+
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      return;
+    }
+
+    this.queueGuidanceRefresh(editor);
   }
 
   private async advancePlayback() {
@@ -361,8 +535,8 @@ class GuidedPatchController implements SidebarController, vscode.Disposable {
   }
 
   private clearDecorations() {
-    this.lastDecoratedEditor?.setDecorations(this.ghostDecorationType, []);
     this.lastDecoratedEditor?.setDecorations(this.highlightDecorationType, []);
+    this.lastDecoratedEditor?.setDecorations(this.ghostTextDecorationType, []);
     this.lastDecoratedEditor = null;
   }
 
@@ -371,6 +545,9 @@ class GuidedPatchController implements SidebarController, vscode.Disposable {
     this.clearDecorations();
 
     if (!step || editor.document.uri.fsPath !== path.join(this.workspaceRoot, step.file.path)) {
+      if (this.guidanceMode === "suggest") {
+        void vscode.commands.executeCommand("hideSuggestWidget");
+      }
       return;
     }
 
@@ -378,70 +555,594 @@ class GuidedPatchController implements SidebarController, vscode.Disposable {
     editor.setDecorations(this.highlightDecorationType, [range]);
 
     if (step.mode === "implementation") {
-      const isComplete = this.guidedState?.steps[step.id]?.status === "complete";
-      if (!isComplete) {
-        const insertionPosition = this.resolveImplementationInsertionPosition(editor.document, step);
-        editor.setDecorations(
-          this.ghostDecorationType,
-          this.createGhostDecorationOptions(editor, insertionPosition, step.ghostCode)
-        );
-      }
+      this.queueGuidanceRefresh(editor);
+    } else if (this.guidanceMode === "suggest") {
+      void vscode.commands.executeCommand("hideSuggestWidget");
     }
 
     this.lastDecoratedEditor = editor;
   }
 
-  private createGhostDecorationOptions(
+  private queueGuidanceRefresh(editor: vscode.TextEditor) {
+    switch (this.guidanceMode) {
+      case "diff":
+        this.queueDiffRefresh(editor);
+        break;
+      case "inline":
+        this.applyInlineGhostText(editor);
+        break;
+      case "suggest":
+        this.queueSuggestWidgetRefresh(editor);
+        break;
+      case "hover":
+        this.queueHoverRefresh(editor);
+        break;
+      case "peek":
+        this.queuePeekRefresh(editor);
+        break;
+    }
+  }
+
+  private applyInlineGhostText(editor: vscode.TextEditor) {
+    const decoration = this.getActiveImplementationGhostDecoration(editor);
+    editor.setDecorations(this.ghostTextDecorationType, decoration ? [decoration] : []);
+  }
+
+  private getRemainingGhostCode(
     editor: vscode.TextEditor,
     position: vscode.Position,
     ghostCode: string
-  ): vscode.DecorationOptions[] {
+  ): string | null {
     const document = editor.document;
     const anchorOffset = document.offsetAt(position);
     const documentTextFromAnchor = document.getText().slice(anchorOffset).replace(/\r\n/g, "\n");
     const cursorOffset = Math.max(anchorOffset, document.offsetAt(editor.selection.active));
     const typedPrefix = document.getText().slice(anchorOffset, cursorOffset).replace(/\r\n/g, "\n");
-    const normalisedGhostCode = ghostCode.replace(/\r\n/g, "\n").replace(/\n$/, "");
+    const normalisedGhostCode = this.getAdaptedGhostCode(editor, ghostCode)
+      .replace(/\r\n/g, "\n")
+      .replace(/\n$/, "");
 
     if (normaliseCode(documentTextFromAnchor).includes(normaliseCode(normalisedGhostCode))) {
-      return [];
+      return null;
     }
 
-    let expectedIndex = 0;
-    let actualIndex = 0;
-
-    while (actualIndex < typedPrefix.length && expectedIndex < normalisedGhostCode.length) {
-      if (typedPrefix[actualIndex] === normalisedGhostCode[expectedIndex]) {
-        actualIndex += 1;
-        expectedIndex += 1;
-        continue;
-      }
-
-      if (/\s/.test(normalisedGhostCode[expectedIndex] ?? "") && !/\s/.test(typedPrefix[actualIndex] ?? "")) {
-        expectedIndex += 1;
-        continue;
-      }
-
-      break;
-    }
+    const { expectedIndex } = this.matchGhostCodePrefix(typedPrefix, normalisedGhostCode);
 
     const remainingGhostCode = normalisedGhostCode.slice(expectedIndex);
-    if (!remainingGhostCode) {
-      return [];
+    return remainingGhostCode || null;
+  }
+
+  private matchGhostCodePrefix(actualText: string, ghostCode: string) {
+    return matchGhostCodePrefix(actualText, ghostCode);
+  }
+
+  getActiveImplementationCompletion(
+    editor: vscode.TextEditor,
+    position?: vscode.Position
+  ): vscode.CompletionItem | null {
+    if (this.guidanceMode !== "suggest") {
+      return null;
     }
 
-    const anchor = document.positionAt(cursorOffset);
+    const step = this.getActiveStep();
+    if (!step || step.mode !== "implementation") {
+      return null;
+    }
 
-    return [
+    if (editor.document.uri.fsPath !== path.join(this.workspaceRoot, step.file.path)) {
+      return null;
+    }
+
+    if (this.guidedState?.steps[step.id]?.status === "complete") {
+      return null;
+    }
+
+    const insertionPosition = this.resolveImplementationInsertionPosition(editor.document, step);
+    const activePosition = position ?? editor.selection.active;
+
+    if (editor.selection.anchor.line !== activePosition.line || editor.selection.anchor.character !== activePosition.character) {
+      return null;
+    }
+
+    if (editor.document.offsetAt(activePosition) < editor.document.offsetAt(insertionPosition)) {
+      return null;
+    }
+
+    const remainingGhostCode = this.getRemainingGhostCode(editor, insertionPosition, step.ghostCode);
+    if (!remainingGhostCode) {
+      return null;
+    }
+
+    const previewLine =
+      remainingGhostCode.split("\n").find((line) => line.trim().length > 0) ?? remainingGhostCode;
+    const typedPrefix = editor.document
+      .getText()
+      .slice(editor.document.offsetAt(insertionPosition), editor.document.offsetAt(activePosition))
+      .replace(/\r\n/g, "\n");
+
+    const item = new vscode.CompletionItem(
       {
-        range: new vscode.Range(anchor, anchor),
-        renderOptions: {
-          after: {
-            contentText: remainingGhostCode
-          }
+        label: previewLine,
+        description: "duckWalk"
+      },
+      vscode.CompletionItemKind.Snippet
+    );
+
+    item.insertText = remainingGhostCode;
+    item.filterText = `${typedPrefix}${remainingGhostCode}`;
+    item.range = new vscode.Range(activePosition, activePosition);
+    item.sortText = "0000";
+    item.preselect = true;
+    item.detail = "duckWalk step suggestion";
+    item.documentation = new vscode.MarkdownString("Suggested remainder for the active guided step.");
+
+    return item;
+  }
+
+  getActiveImplementationHover(
+    editor: vscode.TextEditor,
+    position: vscode.Position
+  ): vscode.Hover | null {
+    if (this.guidanceMode !== "hover") {
+      return null;
+    }
+
+    const step = this.getActiveStep();
+    if (!step || step.mode !== "implementation") {
+      return null;
+    }
+
+    if (editor.document.uri.fsPath !== path.join(this.workspaceRoot, step.file.path)) {
+      return null;
+    }
+
+    if (this.guidedState?.steps[step.id]?.status === "complete") {
+      return null;
+    }
+
+    const insertionPosition = this.resolveImplementationInsertionPosition(editor.document, step);
+    if (editor.document.offsetAt(position) < editor.document.offsetAt(insertionPosition)) {
+      return null;
+    }
+
+    const adaptedGhostCode = this.getAdaptedGhostCode(editor, step.ghostCode);
+    const markdown = new vscode.MarkdownString(undefined, true);
+    markdown.appendMarkdown(`**duckWalk**\n\n${step.explanation.title}\n\n`);
+    markdown.appendCodeblock(adaptedGhostCode, editor.document.languageId);
+    markdown.isTrusted = false;
+
+    return new vscode.Hover(markdown, new vscode.Range(position, position));
+  }
+
+  private getActiveImplementationGhostDecoration(
+    editor: vscode.TextEditor
+  ): vscode.DecorationOptions | null {
+    if (this.guidanceMode !== "inline") {
+      return null;
+    }
+
+    const step = this.getActiveStep();
+    if (!step || step.mode !== "implementation") {
+      return null;
+    }
+
+    if (editor.document.uri.fsPath !== path.join(this.workspaceRoot, step.file.path)) {
+      return null;
+    }
+
+    if (this.guidedState?.steps[step.id]?.status === "complete") {
+      return null;
+    }
+
+    if (editor.selections.length !== 1 || !editor.selection.isEmpty) {
+      return null;
+    }
+
+    const insertionPosition = this.resolveImplementationInsertionPosition(editor.document, step);
+    const activePosition = editor.selection.active;
+
+    if (editor.document.offsetAt(activePosition) < editor.document.offsetAt(insertionPosition)) {
+      return null;
+    }
+
+    const remainingGhostCode = this.getRemainingGhostCode(editor, insertionPosition, step.ghostCode);
+    if (!remainingGhostCode) {
+      return null;
+    }
+
+    const firstLine = remainingGhostCode.split("\n")[0] ?? remainingGhostCode;
+    if (!firstLine) {
+      return null;
+    }
+
+    const line = editor.document.lineAt(activePosition.line);
+    let anchorRange: vscode.Range;
+    let renderOptions: vscode.DecorationInstanceRenderOptions;
+
+    if (activePosition.character > 0) {
+      const rangeStart = activePosition.translate(0, -1);
+      anchorRange = new vscode.Range(rangeStart, activePosition);
+      renderOptions = {
+        after: {
+          contentText: firstLine
         }
+      };
+    } else if (!line.isEmptyOrWhitespace && line.text.length > 0) {
+      const rangeEnd = activePosition.translate(0, 1);
+      anchorRange = new vscode.Range(activePosition, rangeEnd);
+      renderOptions = {
+        before: {
+          contentText: firstLine
+        }
+      };
+    } else {
+      anchorRange = new vscode.Range(activePosition, activePosition);
+      renderOptions = {
+        after: {
+          contentText: firstLine
+        }
+      };
+    }
+
+    return {
+      range: anchorRange,
+      hoverMessage: new vscode.MarkdownString().appendCodeblock(
+        remainingGhostCode,
+        editor.document.languageId
+      ),
+      renderOptions
+    };
+  }
+
+  private queueSuggestWidgetRefresh(editor: vscode.TextEditor) {
+    if (this.suggestRefreshTimer) {
+      clearTimeout(this.suggestRefreshTimer);
+    }
+
+    this.suggestRefreshTimer = setTimeout(() => {
+      this.suggestRefreshTimer = null;
+
+      if (editor !== vscode.window.activeTextEditor) {
+        return;
       }
-    ];
+
+      const completion = this.getActiveImplementationCompletion(editor);
+      void vscode.commands.executeCommand(
+        completion ? "editor.action.triggerSuggest" : "hideSuggestWidget"
+      );
+    }, 0);
+  }
+
+  private queueHoverRefresh(editor: vscode.TextEditor) {
+    if (this.hoverRefreshTimer) {
+      clearTimeout(this.hoverRefreshTimer);
+    }
+
+    this.hoverRefreshTimer = setTimeout(() => {
+      this.hoverRefreshTimer = null;
+
+      if (editor !== vscode.window.activeTextEditor) {
+        return;
+      }
+
+      const hover = this.getActiveImplementationHover(editor, editor.selection.active);
+      if (hover) {
+        void vscode.commands.executeCommand("editor.action.showHover");
+      }
+    }, 0);
+  }
+
+  private queuePeekRefresh(editor: vscode.TextEditor) {
+    if (this.peekRefreshTimer) {
+      clearTimeout(this.peekRefreshTimer);
+    }
+
+    this.peekRefreshTimer = setTimeout(() => {
+      this.peekRefreshTimer = null;
+
+      if (editor !== vscode.window.activeTextEditor) {
+        return;
+      }
+
+      void this.showPeekPreview(editor);
+    }, 0);
+  }
+
+  private queueDiffRefresh(editor: vscode.TextEditor) {
+    if (this.diffRefreshTimer) {
+      clearTimeout(this.diffRefreshTimer);
+    }
+
+    this.diffRefreshTimer = setTimeout(() => {
+      this.diffRefreshTimer = null;
+
+      if (editor !== vscode.window.activeTextEditor) {
+        return;
+      }
+
+      void this.showDiffPreview(editor);
+    }, 0);
+  }
+
+  private async showPeekPreview(editor: vscode.TextEditor): Promise<void> {
+    const step = this.getActiveStep();
+    if (!step || step.mode !== "implementation") {
+      return;
+    }
+
+    if (editor.document.uri.fsPath !== path.join(this.workspaceRoot, step.file.path)) {
+      return;
+    }
+
+    if (this.guidedState?.steps[step.id]?.status === "complete") {
+      return;
+    }
+
+    const previewUri = this.getPreviewUri(step, "peek");
+
+    this.previewProvider.update(previewUri, this.getAdaptedGhostCode(editor, step.ghostCode));
+
+    const document = await vscode.workspace.openTextDocument(previewUri);
+    await vscode.window.showTextDocument(document, {
+      viewColumn: vscode.ViewColumn.Beside,
+      preserveFocus: true,
+      preview: true
+    });
+  }
+
+  private async showDiffPreview(editor: vscode.TextEditor): Promise<void> {
+    const step = this.getActiveStep();
+    if (!step || step.mode !== "implementation") {
+      return;
+    }
+
+    if (editor.document.uri.fsPath !== path.join(this.workspaceRoot, step.file.path)) {
+      return;
+    }
+
+    const diffPreview = this.buildGuidedDiffPreview(editor, step);
+    if (!diffPreview) {
+      return;
+    }
+
+    const previewUri = this.getPreviewUri(step, "diff");
+    this.previewProvider.update(previewUri, diffPreview.content, diffPreview.highlightRanges);
+
+    let previewEditor = vscode.window.visibleTextEditors.find(
+      (visibleEditor) => visibleEditor.document.uri.toString() === previewUri.toString()
+    );
+
+    if (!previewEditor) {
+      const document = await vscode.workspace.openTextDocument(previewUri);
+      await vscode.languages.setTextDocumentLanguage(document, editor.document.languageId);
+      previewEditor = await vscode.window.showTextDocument(document, {
+        viewColumn: vscode.ViewColumn.Beside,
+        preserveFocus: true,
+        preview: true
+      });
+    }
+
+    this.applyDiffPreviewDecorations(previewEditor);
+  }
+
+  private getPreviewUri(step: GuidedStep, mode: "peek" | "diff"): vscode.Uri {
+    const extension = path.extname(step.file.path) || ".txt";
+    const safePath = step.file.path.replace(/[\\]/g, "/");
+    return vscode.Uri.from({
+      scheme: "duckwalk-preview",
+      path: `/${mode}/${safePath}${extension.endsWith(path.extname(safePath)) ? "" : extension}`
+    });
+  }
+
+  private buildGuidedDiffPreview(
+    editor: vscode.TextEditor,
+    step: ImplementationStep
+  ): { content: string; highlightRanges: vscode.Range[] } | null {
+    const document = editor.document;
+    const insertionPosition = this.resolveImplementationInsertionPosition(document, step);
+    const anchorOffset = document.offsetAt(insertionPosition);
+    const cursorOffset = Math.max(anchorOffset, document.offsetAt(editor.selection.active));
+    const originalText = document.getText();
+    const preview = buildGuidancePreviewFromAnchor({
+      actualPrefix: originalText.slice(anchorOffset, cursorOffset),
+      actualSuffix: originalText.slice(cursorOffset),
+      ghostCode: this.getAdaptedGhostCode(editor, step.ghostCode)
+    });
+
+    if (!preview) {
+      return {
+        content: originalText,
+        highlightRanges: []
+      };
+    }
+
+    const previewDocumentText = `${originalText.slice(0, anchorOffset)}${preview.mergedText}`;
+    const highlightRange = this.rangeFromOffsets(
+      previewDocumentText,
+      anchorOffset + preview.insertedStart,
+      anchorOffset + preview.insertedEnd
+    );
+
+    return {
+      content: previewDocumentText,
+      highlightRanges: highlightRange ? [highlightRange] : []
+    };
+  }
+
+  private rangeFromOffsets(
+    text: string,
+    startOffset: number,
+    endOffset: number
+  ): vscode.Range | null {
+    if (endOffset <= startOffset) {
+      return null;
+    }
+
+    const start = this.positionFromOffset(text, startOffset);
+    const end = this.positionFromOffset(text, endOffset);
+    return new vscode.Range(start, end);
+  }
+
+  private positionFromOffset(text: string, offset: number): vscode.Position {
+    const safeOffset = Math.max(0, Math.min(offset, text.length));
+    const prefix = text.slice(0, safeOffset);
+    const lines = prefix.split("\n");
+    const line = Math.max(lines.length - 1, 0);
+    const character = lines.at(-1)?.length ?? 0;
+    return new vscode.Position(line, character);
+  }
+
+  private applyDiffPreviewDecorations(editor: vscode.TextEditor) {
+    if (editor.document.uri.scheme !== "duckwalk-preview") {
+      return;
+    }
+
+    editor.setDecorations(
+      this.diffPreviewDecorationType,
+      this.previewProvider.getHighlightRanges(editor.document.uri)
+    );
+  }
+
+  private getEditorIndentationPreference(editor: vscode.TextEditor): IndentationPreference {
+    const insertSpacesOption = editor.options.insertSpaces;
+    const tabSizeOption = editor.options.tabSize;
+    const insertSpaces = insertSpacesOption === "auto" ? this.inferInsertSpaces(editor.document) : insertSpacesOption !== false;
+    const tabSize =
+      typeof tabSizeOption === "number"
+        ? tabSizeOption
+        : this.inferTabSize(editor.document, insertSpaces);
+
+    return {
+      insertSpaces,
+      tabSize: Math.max(tabSize, 1)
+    };
+  }
+
+  private inferInsertSpaces(document: vscode.TextDocument): boolean {
+    for (const line of document.getText().replace(/\r\n/g, "\n").split("\n")) {
+      if (!line.trim()) {
+        continue;
+      }
+
+      if (line.startsWith("\t")) {
+        return false;
+      }
+
+      if (line.startsWith(" ")) {
+        return true;
+      }
+    }
+
+    return true;
+  }
+
+  private inferTabSize(document: vscode.TextDocument, insertSpaces: boolean): number {
+    if (!insertSpaces) {
+      return 2;
+    }
+
+    for (const line of document.getText().replace(/\r\n/g, "\n").split("\n")) {
+      if (!line.trim()) {
+        continue;
+      }
+
+      const match = line.match(/^( +)\S/);
+      if (match?.[1]) {
+        return Math.max(match[1].length, 1);
+      }
+    }
+
+    return 2;
+  }
+
+  private getAdaptedGhostCode(editor: vscode.TextEditor, ghostCode: string): string {
+    return adaptCodeIndentation(ghostCode, this.getEditorIndentationPreference(editor));
+  }
+
+  private validateStepAgainstEditorDocument(
+    step: ImplementationStep,
+    document: vscode.TextDocument
+  ): boolean {
+    const editor =
+      vscode.window.visibleTextEditors.find((candidate) => candidate.document === document) ??
+      (vscode.window.activeTextEditor?.document === document ? vscode.window.activeTextEditor : null);
+
+    if (!editor) {
+      return validateStepAgainstContent(step, document.getText());
+    }
+
+    const expectedText = adaptCodeIndentation(
+      getValidationText(step),
+      this.getEditorIndentationPreference(editor)
+    );
+    const validationWindow = extractValidationWindow(document.getText(), step.location, step.validation);
+    return validateExpectedCode(validationWindow, expectedText);
+  }
+
+  private clearPendingAutoComplete() {
+    if (this.autoCompleteTimer) {
+      clearTimeout(this.autoCompleteTimer);
+      this.autoCompleteTimer = null;
+    }
+  }
+
+  private scheduleAutoCompleteActiveStep(document: vscode.TextDocument, delayMs = 180) {
+    this.clearPendingAutoComplete();
+
+    this.autoCompleteTimer = setTimeout(() => {
+      this.autoCompleteTimer = null;
+      void this.completeAfterSettledChange(document);
+    }, delayMs);
+  }
+
+  private async completeAfterSettledChange(document: vscode.TextDocument) {
+    const didComplete = await this.maybeAutoCompleteActiveStep(document);
+    if (!didComplete) {
+      return;
+    }
+
+    await this.publishState(null);
+  }
+
+  private async maybeAutoCompleteActiveStep(document?: vscode.TextDocument): Promise<boolean> {
+    const step = this.getActiveStep();
+    if (!step || step.mode !== "implementation" || !this.session) {
+      return false;
+    }
+
+    if (this.guidedState?.steps[step.id]?.status === "complete") {
+      return false;
+    }
+
+    const expectedPath = path.join(this.workspaceRoot, step.file.path);
+    let targetDocument = document;
+
+    if (!targetDocument || targetDocument.uri.fsPath !== expectedPath) {
+      try {
+        targetDocument = await vscode.workspace.openTextDocument(expectedPath);
+      } catch {
+        return false;
+      }
+    }
+
+    if (!this.validateStepAgainstEditorDocument(step, targetDocument)) {
+      return false;
+    }
+
+    this.guidedState = await updateGuidedStepStatus(
+      this.workspaceRoot,
+      this.session,
+      step.id,
+      "complete"
+    );
+    this.activeStepId = this.guidedState.activeStepId;
+
+    const editor = vscode.window.activeTextEditor;
+    if (editor) {
+      await this.applyStepDecorations(editor);
+    }
+
+    return true;
   }
 
   private async handleDocumentChange(event: vscode.TextDocumentChangeEvent): Promise<void> {
@@ -455,22 +1156,17 @@ class GuidedPatchController implements SidebarController, vscode.Disposable {
       return;
     }
 
-    const isComplete = validateStepAgainstContent(step, event.document.getText());
+    const isComplete = this.validateStepAgainstEditorDocument(step, event.document);
     const editor = vscode.window.activeTextEditor;
     if (editor) {
       await this.applyStepDecorations(editor);
     }
     if (!isComplete) {
+      this.clearPendingAutoComplete();
       return;
     }
 
-    this.guidedState = await updateGuidedStepStatus(this.workspaceRoot, this.session, step.id, "complete");
-    this.activeStepId = this.guidedState.activeStepId;
-    const refreshedEditor = vscode.window.activeTextEditor;
-    if (refreshedEditor) {
-      await this.applyStepDecorations(refreshedEditor);
-    }
-    await this.publishState(null);
+    this.scheduleAutoCompleteActiveStep(event.document);
   }
 
   private async publishState(error: string | null): Promise<void> {
@@ -479,6 +1175,8 @@ class GuidedPatchController implements SidebarController, vscode.Disposable {
       guidedState: this.guidedState,
       activeStepId: this.activeStepId,
       isPlaying: this.isPlaying,
+      guidanceMode: this.guidanceMode,
+      tabAcceptEnabled: this.tabAcceptEnabled,
       error
     };
 
@@ -492,24 +1190,58 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return;
   }
 
-  const controller = new GuidedPatchController(workspaceFolder.uri.fsPath, workspaceFolder.uri);
-  const provider = new GuidedPatchViewProvider(context.extensionUri, controller);
+  const previewProvider = new DuckWalkPreviewProvider();
+  const controller = new DuckWalkController(
+    workspaceFolder.uri.fsPath,
+    workspaceFolder.uri,
+    previewProvider
+  );
+  const provider = new DuckWalkViewProvider(context.extensionUri, controller);
   controller.setViewProvider(provider);
 
-    context.subscriptions.push(
-      vscode.window.registerWebviewViewProvider("guidedPatch.sidebar", provider),
-      vscode.commands.registerCommand("guidedPatch.startSession", () => controller.startSession()),
-      vscode.commands.registerCommand("guidedPatch.nextStep", () => controller.handleSidebarMessage({ type: "next-step" })),
-      vscode.commands.registerCommand("guidedPatch.previousStep", () =>
-        controller.handleSidebarMessage({ type: "previous-step" })
-      ),
-      vscode.commands.registerCommand("guidedPatch.completeStep", () =>
-        controller.handleSidebarMessage({ type: "complete-step" })
-      ),
-      vscode.commands.registerCommand("guidedPatch.refreshSession", () =>
-        controller.handleSidebarMessage({ type: "refresh-session" })
-      ),
-    vscode.commands.registerCommand("guidedPatch.togglePlayback", () =>
+  context.subscriptions.push(
+    previewProvider,
+    vscode.commands.registerCommand("duckWalk.dismissSuggestionWidget", async () => {
+      await vscode.commands.executeCommand("hideSuggestWidget");
+    }),
+    vscode.workspace.registerTextDocumentContentProvider("duckwalk-preview", previewProvider),
+    vscode.languages.registerHoverProvider({ scheme: "file" }, {
+      provideHover(document, position) {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document !== document) {
+          return undefined;
+        }
+
+        return controller.getActiveImplementationHover(editor, position) ?? undefined;
+      }
+    }),
+    vscode.languages.registerCompletionItemProvider({ scheme: "file" }, {
+      provideCompletionItems(document, position) {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document !== document) {
+          return undefined;
+        }
+
+        const completion = controller.getActiveImplementationCompletion(editor, position);
+        return completion ? [completion] : undefined;
+      }
+    }),
+    vscode.window.registerWebviewViewProvider("duckWalk.sidebar", provider),
+    vscode.commands.registerCommand("duckWalk.startSession", () => controller.startSession()),
+    vscode.commands.registerCommand("duckWalk.nextStep", () => controller.handleSidebarMessage({ type: "next-step" })),
+    vscode.commands.registerCommand("duckWalk.previousStep", () =>
+      controller.handleSidebarMessage({ type: "previous-step" })
+    ),
+    vscode.commands.registerCommand("duckWalk.completeStep", () =>
+      controller.handleSidebarMessage({ type: "complete-step" })
+    ),
+    vscode.commands.registerCommand("duckWalk.undoCompleteStep", () =>
+      controller.handleSidebarMessage({ type: "undo-complete-step" })
+    ),
+    vscode.commands.registerCommand("duckWalk.refreshSession", () =>
+      controller.handleSidebarMessage({ type: "refresh-session" })
+    ),
+    vscode.commands.registerCommand("duckWalk.togglePlayback", () =>
       controller.handleSidebarMessage({ type: "toggle-playback" })
     )
   );

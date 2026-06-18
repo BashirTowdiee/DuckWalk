@@ -1,5 +1,5 @@
 {
-  "name": "@guidedpatch/core",
+  "name": "@duckwalk/core",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -18,7 +18,7 @@
     "test": "vitest run src/*.test.ts"
   },
   "dependencies": {
-    "@guidedpatch/schema": "workspace:*",
+    "@duckwalk/schema": "workspace:*",
     "zod": "^3.24.1"
   }
 }

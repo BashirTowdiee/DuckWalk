@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { GuidedSession } from "@guidedpatch/schema";
+import type { GuidedSession } from "@duckwalk/schema";
 
 import { validateSessionIntegrity } from "./session";
 

@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -5,15 +7,18 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import {
   createGuidedSession,
   createPrReviewSession,
+  getDuckWalkContract,
   getGuidedSession,
-  updateStepStatus
+  pathfinder,
+  updateStepStatus,
+  validateGuidedSessionInput
 } from "./service";
 
-const rootDir = process.env.GUIDEDPATCH_ROOT ?? process.cwd();
+const rootDir = process.env.DUCKWALK_ROOT ?? process.cwd();
 
 const server = new Server(
   {
-    name: "guidedpatch-mcp",
+    name: "duckwalk-mcp",
     version: "0.1.0"
   },
   {
@@ -41,14 +46,67 @@ function getArguments(input: unknown): Record<string, unknown> {
   return input as Record<string, unknown>;
 }
 
+function resolveTargetRoot(args: Record<string, unknown>): string {
+  const workspaceRoot = args.workspaceRoot;
+  if (typeof workspaceRoot === "string" && workspaceRoot.trim().length > 0) {
+    return path.resolve(workspaceRoot);
+  }
+
+  return rootDir;
+}
+
+function resolveExpectedMode(
+  value: unknown
+): Parameters<typeof validateGuidedSessionInput>[0]["expectMode"] {
+  return value === "implementation" ||
+    value === "pr_review" ||
+    value === "codebase_walkthrough"
+    ? value
+    : undefined;
+}
+
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
+    {
+      name: "get_duckwalk_contract",
+      description:
+        "Return the duckWalk session contract, rules, and example payloads for Codex.",
+      inputSchema: {
+        type: "object",
+        properties: {}
+      }
+    },
+    {
+      name: "validate_guided_session",
+      description:
+        "Validate a GuidedSession payload without writing files, and return a normalized summary.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          session: {
+            type: "object",
+            description: "A full GuidedSession payload."
+          },
+          expectMode: {
+            type: "string",
+            enum: ["implementation", "pr_review", "codebase_walkthrough"],
+            description: "Optional expected mode check for the session."
+          }
+        },
+        required: ["session"]
+      }
+    },
     {
       name: "create_guided_session",
       description: "Validate and persist an implementation guided session.",
       inputSchema: {
         type: "object",
         properties: {
+          workspaceRoot: {
+            type: "string",
+            description:
+              "Optional absolute workspace root where .guided-implementation files should be written."
+          },
           session: {
             type: "object",
             description: "A full GuidedSession payload."
@@ -63,9 +121,33 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
+          workspaceRoot: {
+            type: "string",
+            description:
+              "Optional absolute workspace root where .guided-implementation files should be written."
+          },
           session: {
             type: "object",
             description: "A full GuidedSession payload with mode pr_review."
+          }
+        },
+        required: ["session"]
+      }
+    },
+    {
+      name: "pathfinder",
+      description: "Validate and persist a question-driven codebase walkthrough session.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          workspaceRoot: {
+            type: "string",
+            description:
+              "Optional absolute workspace root where .guided-implementation files should be written."
+          },
+          session: {
+            type: "object",
+            description: "A full GuidedSession payload with mode codebase_walkthrough."
           }
         },
         required: ["session"]
@@ -77,6 +159,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
+          workspaceRoot: {
+            type: "string",
+            description:
+              "Optional absolute workspace root where the guided session should be read."
+          },
           sessionId: {
             type: "string"
           }
@@ -89,6 +176,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
+          workspaceRoot: {
+            type: "string",
+            description:
+              "Optional absolute workspace root where the guided session state should be updated."
+          },
           sessionId: {
             type: "string"
           },
@@ -108,29 +200,49 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const args = getArguments(request.params.arguments);
+  const targetRoot = resolveTargetRoot(args);
 
   switch (request.params.name) {
+    case "get_duckwalk_contract":
+      return textResult(getDuckWalkContract());
+    case "validate_guided_session":
+      {
+        const expectMode = resolveExpectedMode(args.expectMode);
+        const payload = {
+          session: args.session as Parameters<typeof validateGuidedSessionInput>[0]["session"],
+          ...(expectMode ? { expectMode } : {})
+        };
+
+        return textResult(validateGuidedSessionInput(payload));
+      }
     case "create_guided_session":
       return textResult(
-        await createGuidedSession(rootDir, args.session as Parameters<typeof createGuidedSession>[1])
+        await createGuidedSession(
+          targetRoot,
+          args.session as Parameters<typeof createGuidedSession>[1]
+        )
       );
     case "create_pr_review_session":
       return textResult(
         await createPrReviewSession(
-          rootDir,
+          targetRoot,
           args.session as Parameters<typeof createPrReviewSession>[1]
         )
+      );
+    case "pathfinder":
+      return textResult(
+        await pathfinder(targetRoot, args.session as Parameters<typeof pathfinder>[1])
       );
     case "get_guided_session":
       return textResult(
         await getGuidedSession(
-          rootDir,
+          targetRoot,
           typeof args.sessionId === "string" ? args.sessionId : undefined
         )
       );
     case "update_step_status":
       return textResult(
-        await updateStepStatus(rootDir, {
+        await updateStepStatus(targetRoot, {
           sessionId: String(args.sessionId),
           stepId: String(args.stepId),
           status: args.status as Parameters<typeof updateStepStatus>[1]["status"]
@@ -147,7 +259,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("[guidedpatch-mcp] fatal error");
+  console.error("[duckwalk-mcp] fatal error");
   console.error(error);
   process.exit(1);
 });
