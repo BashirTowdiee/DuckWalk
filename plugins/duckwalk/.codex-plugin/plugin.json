@@ -24,6 +24,8 @@
       "Use Pathfinder to explain how this architecture flow works in the codebase.",
       "Show the current duckWalk session and state for this workspace."
     ],
-    "brandColor": "#2D9CDB"
+    "brandColor": "#2D9CDB",
+    "composerIcon": "./assets/duckwalk-icon.svg",
+    "logo": "./assets/duckwalk-icon.svg"
   }
 }

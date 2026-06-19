@@ -1,6 +1,8 @@
-# duckWalk
+# DuckWalk
 
-duckWalk is a VS Code extension and MCP server for agent-generated, step-by-step code implementation, PR review playback, and question-driven codebase walkthroughs.
+![DuckWalk banner](assets/branding/duckwalk-readme-banner.svg)
+
+DuckWalk is a VS Code extension and MCP server for agent-generated, step-by-step code implementation, PR review playback, and question-driven codebase walkthroughs.
 
 Instead of letting an AI agent directly edit files or answer architecture questions with loose prose, duckWalk turns the agent's output into a structured guided session. The editor then guides the developer through each change or touchpoint using numbered steps, explanations, code snippets, file navigation, and validation where relevant.
 
