@@ -1,6 +1,6 @@
 {
   "name": "@duckwalk/mcp-server",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "duckWalk MCP server for guided implementation, PR review playback, and Pathfinder walkthroughs.",
   "license": "MIT",
   "type": "module",
