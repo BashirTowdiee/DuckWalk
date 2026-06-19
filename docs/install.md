@@ -11,7 +11,6 @@ duckWalk ships as three public artifacts:
 Install `duckwalk.duckwalk-vscode-extension` from either:
 
 - VS Code Marketplace
-- Open VSX
 
 You can also sideload the `.vsix` from GitHub Releases.
 

@@ -12,7 +12,7 @@ The goal is to make AI-assisted coding more understandable, reviewable, and deli
 
 DuckWalk ships as three public artifacts:
 
-- VS Code extension: `duckwalk.duckwalk-vscode-extension` on the VS Code Marketplace and Open VSX
+- VS Code extension: `duckwalk.duckwalk-vscode-extension` on the VS Code Marketplace
 - MCP server: `@duckwalk/mcp-server` on npm
 - Codex plugin: GitHub Release marketplace bundle for self-serve Codex installation
 

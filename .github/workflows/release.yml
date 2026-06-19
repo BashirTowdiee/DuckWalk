@@ -41,6 +41,5 @@ jobs:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: pnpm release:publish

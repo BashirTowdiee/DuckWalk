@@ -6,7 +6,6 @@ Configure these secrets before automated release publishing:
 
 - `NODE_AUTH_TOKEN` or `NPM_TOKEN` for npm publish
 - `VSCE_PAT` for the VS Code Marketplace publisher
-- `OVSX_TOKEN` for Open VSX
 - `GITHUB_TOKEN` or `GH_TOKEN` for GitHub Release creation
 
 ## Local release flow
@@ -38,7 +37,7 @@ Configure these secrets before automated release publishing:
 ## CI release flow
 
 - Push a semver tag such as `v0.1.2`.
-- The release workflow verifies the repo, publishes npm and extension artifacts, and creates or updates the GitHub Release.
+- The release workflow verifies the repo, publishes npm and VS Code Marketplace artifacts, and creates or updates the GitHub Release.
 
 ## GitHub Release behavior
 
@@ -48,5 +47,5 @@ Configure these secrets before automated release publishing:
 ## Rollback guidance
 
 - npm: prefer `npm deprecate` over unpublish once a version is public.
-- VS Code Marketplace and Open VSX: publish a fixed follow-up version rather than trying to erase a bad version.
+- VS Code Marketplace: publish a fixed follow-up version rather than trying to erase a bad version.
 - GitHub Releases: rerun `pnpm release:publish` for the same tag after fixing the artifacts; the script replaces matching asset names before uploading new ones.

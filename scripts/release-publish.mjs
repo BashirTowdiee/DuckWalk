@@ -62,19 +62,6 @@ async function publishVsCodeExtension(scriptName, vsixPath, dryRun) {
   });
 }
 
-async function publishOpenVsx(scriptName, vsixPath, dryRun) {
-  if (dryRun) {
-    logStep(scriptName, `Dry-run: would publish Open VSX artifact ${path.basename(vsixPath)}`);
-    return;
-  }
-
-  const ovsxToken = requireEnv("OVSX_TOKEN");
-  logStep(scriptName, "Publishing Open VSX extension");
-  await runCommand("pnpm", ["dlx", "ovsx", "publish", vsixPath, "-p", ovsxToken], {
-    cwd: repoRoot
-  });
-}
-
 async function githubRequest(token, url, options = {}) {
   const response = await fetch(url, {
     ...options,
@@ -202,7 +189,6 @@ async function main() {
 
   await publishNpmPackage(scriptName, npmTarballPath, dryRun);
   await publishVsCodeExtension(scriptName, vsixPath, dryRun);
-  await publishOpenVsx(scriptName, vsixPath, dryRun);
   await publishGitHubRelease(scriptName, tagName, releaseFiles, dryRun);
 
   process.stdout.write(`[release:publish] Release ${tagName} ${dryRun ? "dry-run completed" : "published successfully"}.\n`);

@@ -5,7 +5,6 @@ duckWalk turns AI-generated implementation plans, PR reviews, and architecture w
 ## Install
 
 - VS Code Marketplace: `duckwalk.duckwalk-vscode-extension`
-- Open VSX: `duckwalk.duckwalk-vscode-extension`
 
 ## What it does
 
