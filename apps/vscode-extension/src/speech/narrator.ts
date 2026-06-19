@@ -7,7 +7,9 @@ export interface StepNarrator {
 }
 
 export class NoopStepNarrator implements StepNarrator {
-  async speak(_step: GuidedStep): Promise<void> {}
+  async speak(_step: GuidedStep): Promise<void> {
+    void _step;
+  }
 
   async stop(): Promise<void> {}
 

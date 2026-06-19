@@ -14,8 +14,9 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "lint": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run src/*.test.ts"
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run src/*.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@duckwalk/schema": "workspace:*",

@@ -11,8 +11,9 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsx watch src/server.ts",
-    "lint": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run src/service.test.ts"
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run src/service.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@duckwalk/core": "workspace:*",

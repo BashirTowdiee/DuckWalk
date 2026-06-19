@@ -87,12 +87,31 @@ describe("guidedSessionSchema", () => {
       title: "Trace authentication flow",
       summary: "Shows how auth moves from request entry to policy checks.",
       question: "How does authentication work in this backend?",
+      lens: "permission_flow",
+      flow: {
+        summary: "Request -> auth middleware -> policy check",
+        path: ["Request", "authMiddleware", "policyCheck"],
+        outcome: "Protected routes receive an authenticated user context."
+      },
+      followUps: [
+        {
+          id: "follow-up-tests",
+          kind: "tests",
+          label: "Inspect auth tests",
+          description: "Open the auth middleware tests to confirm the happy path and failure paths.",
+          file: "tests/auth/middleware.test.ts"
+        }
+      ],
       createdAt: "2026-06-18T00:00:00.000Z",
       steps: [
         {
           id: "walk-step-1",
           order: 1,
           mode: "codebase_walkthrough",
+          touchpoint: "entry",
+          confidence: "direct",
+          evidenceQuality: "high",
+          fileRationale: "This file is the first protected-route touchpoint where authentication begins.",
           file: {
             path: "src/auth/middleware.ts"
           },
@@ -105,14 +124,35 @@ describe("guidedSessionSchema", () => {
               endCharacter: 0
             }
           },
-          relatedRanges: [
+          subranges: [
             {
-              startLine: 130,
-              startCharacter: 0,
-              endLine: 190,
-              endCharacter: 0
+              id: "middleware-entry",
+              label: "Middleware entry",
+              role: "primary",
+              range: {
+                startLine: 3,
+                startCharacter: 0,
+                endLine: 12,
+                endCharacter: 0
+              },
+              summary: "Reads the incoming Authorization header.",
+              symbols: ["authMiddleware"]
+            },
+            {
+              id: "policy-check",
+              label: "Policy check",
+              role: "context",
+              range: {
+                startLine: 130,
+                startCharacter: 0,
+                endLine: 190,
+                endCharacter: 0
+              },
+              summary: "Later policy enforcement depends on the middleware output.",
+              symbols: ["requireRole"]
             }
           ],
+          symbols: ["authMiddleware", "requireRole"],
           explanation: {
             title: "Start at the auth middleware",
             what: "This middleware extracts the bearer token.",
@@ -120,14 +160,79 @@ describe("guidedSessionSchema", () => {
             how: "It reads the Authorization header and passes the parsed token downstream."
           },
           snippet:
-            "export async function authMiddleware(request, reply) {\n  const authHeader = request.headers.authorization;\n}\n"
+            "export async function authMiddleware(request, reply) {\n  const authHeader = request.headers.authorization;\n}\n",
+          links: [
+            {
+              stepId: "walk-step-2",
+              subrangeId: "service-validate",
+              type: "calls",
+              why: "The parsed token is handed off to the auth service.",
+              viaSymbol: "resolveAuthenticatedUser"
+            }
+          ],
+          branches: [
+            {
+              id: "missing-token",
+              label: "Missing token",
+              condition: "The Authorization header is missing or malformed.",
+              outcome: "The request exits early with an unauthenticated response."
+            }
+          ]
+        },
+        {
+          id: "walk-step-2",
+          order: 2,
+          mode: "codebase_walkthrough",
+          touchpoint: "transform",
+          confidence: "direct",
+          evidenceQuality: "high",
+          fileRationale: "This file turns the raw token into a trusted user context for downstream guards.",
+          file: {
+            path: "src/auth/service.ts"
+          },
+          location: {
+            strategy: "range",
+            range: {
+              startLine: 20,
+              startCharacter: 0,
+              endLine: 35,
+              endCharacter: 0
+            }
+          },
+          subranges: [
+            {
+              id: "service-validate",
+              label: "Token validation",
+              role: "primary",
+              range: {
+                startLine: 20,
+                startCharacter: 0,
+                endLine: 35,
+                endCharacter: 0
+              },
+              summary: "Verifies the token and constructs the authenticated actor.",
+              symbols: ["resolveAuthenticatedUser", "verifyToken"]
+            }
+          ],
+          symbols: ["resolveAuthenticatedUser", "verifyToken"],
+          explanation: {
+            title: "Validate the token in the auth service",
+            what: "This service verifies the token and produces the trusted user context.",
+            why: "Later policy checks should only depend on verified identity data.",
+            how: "The token is decoded and its claims are converted into the downstream actor object."
+          },
+          snippet:
+            "export async function resolveAuthenticatedUser(token) {\n  const payload = await verifyToken(token);\n}\n"
         }
       ]
     });
 
     expect(result.question).toBe("How does authentication work in this backend?");
-    expect(result.steps).toHaveLength(1);
-    expect(result.steps[0]?.relatedRanges).toHaveLength(1);
+    expect(result.lens).toBe("permission_flow");
+    expect(result.followUps).toHaveLength(1);
+    expect(result.steps).toHaveLength(2);
+    expect(result.flow?.path).toHaveLength(3);
+    expect(result.steps[0]?.subranges).toHaveLength(2);
   });
 
   it("rejects a walkthrough session without question, how, or range", () => {
@@ -142,6 +247,10 @@ describe("guidedSessionSchema", () => {
           id: "walk-step-1",
           order: 1,
           mode: "codebase_walkthrough",
+          touchpoint: "entry",
+          confidence: "direct",
+          evidenceQuality: "high",
+          fileRationale: "This file starts the auth walkthrough.",
           file: {
             path: "src/auth/middleware.ts"
           },
@@ -149,6 +258,19 @@ describe("guidedSessionSchema", () => {
             strategy: "line",
             line: 3
           },
+          subranges: [
+            {
+              id: "bad-range",
+              label: "Bad range",
+              role: "context",
+              range: {
+                startLine: 3,
+                startCharacter: 0,
+                endLine: 5,
+                endCharacter: 0
+              }
+            }
+          ],
           explanation: {
             title: "Start at the auth middleware",
             what: "This middleware extracts the bearer token.",

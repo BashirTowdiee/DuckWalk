@@ -1,95 +1,42 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 
-import type { GuidedStep } from "@duckwalk/schema";
-
-import type { GuidanceMode, SidebarMessage, WebviewState } from "./types";
+import type { WebviewState } from "./types";
+import { FlowSummaryPanel, StepDetails, WalkthroughGraph } from "./walkthrough-components";
+import {
+  getGuidanceModeHelp,
+  getStepLocationLabels,
+  getWalkthroughStepSymbols,
+  guidanceModeOptions,
+  SymbolChips,
+  postSidebarMessage
+} from "./webview-shared";
 
 declare global {
   interface Window {
     acquireVsCodeApi: () => {
-      postMessage: (message: SidebarMessage) => void;
+      postMessage: (message: unknown) => void;
     };
   }
 }
-
-const vscode = window.acquireVsCodeApi();
 
 const initialState: WebviewState = {
   session: null,
   guidedState: null,
   activeStepId: null,
+  activeEvidenceId: null,
+  walkthroughDrift: null,
   isPlaying: false,
   guidanceMode: "diff",
   tabAcceptEnabled: false,
   error: null
 };
 
-const guidanceModeOptions: Array<{ value: GuidanceMode; label: string }> = [
-  { value: "diff", label: "Diff Preview" },
-  { value: "inline", label: "Ghost Inline" },
-  { value: "hover", label: "Hover" },
-  { value: "peek", label: "Peek Preview" },
-  { value: "suggest", label: "Suggestion Widget" }
-];
-
-function getGuidanceModeLabel(mode: GuidanceMode) {
-  return guidanceModeOptions.find((option) => option.value === mode)?.label ?? mode;
-}
-
-function getGuidanceModeHelp(mode: GuidanceMode, tabAcceptEnabled: boolean) {
-  const tabCopy =
-    mode === "suggest"
-      ? ` Tab Apply is currently ${tabAcceptEnabled ? "on" : "off"}.`
-      : "";
-
-  switch (mode) {
-    case "diff":
-      return "Shows the full guided code in a beside-editor preview and highlights only the code that still needs to be inserted.";
-    case "inline":
-      return "Shows the remaining guided code inline in the editor as dim ghost text.";
-    case "hover":
-      return "Shows the full guided code in the editor hover popup.";
-    case "peek":
-      return "Shows the full guided code in a beside-editor preview tab.";
-    case "suggest":
-      return `Shows the guided code through the completion suggestion widget.${tabCopy}`;
-  }
-}
-
-function getStepLocationLabels(step: GuidedStep) {
-  const labels: string[] = [];
-
-  if (step.mode === "pr_review" && step.review.changedRange) {
-    const range = step.review.changedRange;
-    labels.push(
-      `${range.startLine}:${range.startCharacter} - ${range.endLine}:${range.endCharacter}`
-    );
-  } else if (step.location.strategy === "range" && step.location.range) {
-    const range = step.location.range;
-    labels.push(
-      `${range.startLine}:${range.startCharacter} - ${range.endLine}:${range.endCharacter}`
-    );
-  } else if (step.location.strategy === "line" && step.location.line) {
-    labels.push(`${step.location.line}:${step.location.column ?? 0}`);
-  } else if (
-    (step.location.strategy === "after_text" || step.location.strategy === "before_text") &&
-    step.location.anchorText
-  ) {
-    labels.push(step.location.anchorText);
-  }
-
-  for (const range of step.relatedRanges ?? []) {
-    labels.push(
-      `${range.startLine}:${range.startCharacter} - ${range.endLine}:${range.endCharacter}`
-    );
-  }
-
-  return labels.length > 0 ? labels : [step.location.strategy];
-}
+type WalkthroughView = "story" | "graph";
 
 function App() {
   const [state, setState] = useState<WebviewState>(initialState);
+  const [walkthroughView, setWalkthroughView] = useState<WalkthroughView>("story");
 
   useEffect(() => {
     const listener = (event: MessageEvent<{ type: string; payload: WebviewState }>) => {
@@ -99,18 +46,16 @@ function App() {
     };
 
     window.addEventListener("message", listener);
-    vscode.postMessage({ type: "refresh-session" });
+    postSidebarMessage({ type: "refresh-session" });
     return () => window.removeEventListener("message", listener);
   }, []);
 
   const orderedSteps = useMemo(
-    () =>
-      [...(state.session?.steps ?? [])].sort((left, right) => left.order - right.order),
+    () => [...(state.session?.steps ?? [])].sort((left, right) => left.order - right.order),
     [state.session]
   );
 
   const activeStep = orderedSteps.find((step) => step.id === state.activeStepId) ?? orderedSteps[0];
-
   const stepStatus = (stepId: string) => state.guidedState?.steps[stepId]?.status ?? "pending";
   const activeStepStatus = activeStep ? stepStatus(activeStep.id) : "pending";
   const guidanceHelp = getGuidanceModeHelp(state.guidanceMode, state.tabAcceptEnabled);
@@ -127,27 +72,36 @@ function App() {
             <span className="sessionTitle">{state.session.title}</span>
             <small>{state.session.summary}</small>
             {isWalkthroughSession && state.session.question ? (
-              <small>
-                <strong>Question:</strong> {state.session.question}
-              </small>
+              <>
+                <small>
+                  <strong>Question:</strong> {state.session.question}
+                </small>
+                {state.session.lens ? (
+                  <small>
+                    <strong>Lens:</strong> {state.session.lens}
+                  </small>
+                ) : null}
+              </>
             ) : null}
           </>
         ) : (
           <small>No `.guided-implementation/current.recipe.json` file is loaded.</small>
         )}
         {state.error ? <small style={{ color: "#d84a4a" }}>{state.error}</small> : null}
+        {state.walkthroughDrift?.status === "stale" ? (
+          <small style={{ color: "#d8a54a" }}>
+            <strong>Walkthrough drift:</strong> {state.walkthroughDrift.issues[0] ?? "Saved evidence no longer matches the repo."}
+          </small>
+        ) : null}
       </header>
 
       <section style={{ display: "grid", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
-          <button onClick={() => vscode.postMessage({ type: "start-session" })}>Start Session</button>
-          <button
-            className="secondary"
-            onClick={() => vscode.postMessage({ type: "previous-step" })}
-          >
+          <button onClick={() => postSidebarMessage({ type: "start-session" })}>Start Session</button>
+          <button className="secondary" onClick={() => postSidebarMessage({ type: "previous-step" })}>
             Previous
           </button>
-          <button className="secondary" onClick={() => vscode.postMessage({ type: "next-step" })}>
+          <button className="secondary" onClick={() => postSidebarMessage({ type: "next-step" })}>
             Next
           </button>
         </div>
@@ -167,9 +121,9 @@ function App() {
                 <select
                   value={state.guidanceMode}
                   onChange={(event) =>
-                    vscode.postMessage({
+                    postSidebarMessage({
                       type: "set-guidance-mode",
-                      mode: event.currentTarget.value as GuidanceMode
+                      mode: event.currentTarget.value as WebviewState["guidanceMode"]
                     })
                   }
                 >
@@ -182,20 +136,23 @@ function App() {
               </label>
             ) : null}
 
-            <div style={{ display: "flex", gap: 8, justifyContent: isPrReviewSession ? "flex-start" : "flex-end" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                justifyContent: isPrReviewSession ? "flex-start" : "flex-end"
+              }}
+            >
               {isImplementationSession && state.guidanceMode === "suggest" ? (
                 <button
                   className="secondary compact"
-                  onClick={() => vscode.postMessage({ type: "toggle-tab-accept" })}
+                  onClick={() => postSidebarMessage({ type: "toggle-tab-accept" })}
                 >
                   Tab {state.tabAcceptEnabled ? "On" : "Off"}
                 </button>
               ) : null}
               {isPrReviewSession ? (
-                <button
-                  className="compact"
-                  onClick={() => vscode.postMessage({ type: "toggle-playback" })}
-                >
+                <button className="compact" onClick={() => postSidebarMessage({ type: "toggle-playback" })}>
                   {state.isPlaying ? "Pause" : "Play"}
                 </button>
               ) : null}
@@ -203,6 +160,25 @@ function App() {
           </div>
         ) : null}
       </section>
+
+      {state.session ? <FlowSummaryPanel session={state.session} /> : null}
+
+      {isWalkthroughSession ? (
+        <section style={{ display: "flex", gap: 8 }}>
+          <button
+            className={walkthroughView === "story" ? "compact" : "secondary compact"}
+            onClick={() => setWalkthroughView("story")}
+          >
+            Story
+          </button>
+          <button
+            className={walkthroughView === "graph" ? "compact" : "secondary compact"}
+            onClick={() => setWalkthroughView("graph")}
+          >
+            Graph
+          </button>
+        </section>
+      ) : null}
 
       <section style={{ display: "grid", gap: 8 }}>
         <div className="stepListScroll">
@@ -212,6 +188,8 @@ function App() {
               const status = stepStatus(step.id);
               const canToggleCompletion = step.mode === "implementation";
               const locationLabel = getStepLocationLabels(step).join("; ");
+              const symbols = getWalkthroughStepSymbols(step);
+
               return (
                 <div
                   key={step.id}
@@ -232,15 +210,17 @@ function App() {
                 >
                   <button
                     className="secondary rowButton"
-                    onClick={() => vscode.postMessage({ type: "select-step", stepId: step.id })}
+                    onClick={() => postSidebarMessage({ type: "select-step", stepId: step.id })}
                   >
                     <strong className={isActive ? "stepTitle stepTitleActive" : "stepTitle"}>
                       {step.order}. {step.explanation.title}
                     </strong>
                     {isWalkthroughSession ? (
-                      <small>
-                        {step.file.path} · {locationLabel}
-                      </small>
+                      <>
+                        <small>{step.file.path}</small>
+                        <small>{locationLabel}</small>
+                        <SymbolChips symbols={symbols} />
+                      </>
                     ) : (
                       <small>
                         {step.file.path} ·{" "}
@@ -255,7 +235,7 @@ function App() {
                     <button
                       className={status === "complete" ? "secondary compact" : "compact"}
                       onClick={() =>
-                        vscode.postMessage({
+                        postSidebarMessage({
                           type: "set-step-completion",
                           stepId: step.id,
                           complete: status !== "complete"
@@ -272,104 +252,18 @@ function App() {
         </div>
       </section>
 
-      {activeStep ? (
+      {isWalkthroughSession && state.session && walkthroughView === "graph" ? (
+        <WalkthroughGraph session={state.session} activeStepId={state.activeStepId} />
+      ) : activeStep ? (
         <StepDetails
           step={activeStep}
           status={activeStepStatus}
           guidanceMode={state.guidanceMode}
           guidanceHelp={guidanceHelp}
+          activeEvidenceId={state.activeEvidenceId}
         />
       ) : null}
     </div>
-  );
-}
-
-function StepDetails({
-  step,
-  status,
-  guidanceMode,
-  guidanceHelp
-}: {
-  step: GuidedStep;
-  status: string;
-  guidanceMode: GuidanceMode;
-  guidanceHelp: string;
-}) {
-  return (
-    <section style={{ display: "grid", gap: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <strong className="sectionHeading">Active Step</strong>
-        {step.mode === "implementation" ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <small>{getGuidanceModeLabel(guidanceMode)}</small>
-            <button className="secondary iconButton" title={guidanceHelp} aria-label="Guidance info">
-              i
-            </button>
-          </div>
-        ) : null}
-      </div>
-      <small>{step.file.path}</small>
-      {step.mode === "codebase_walkthrough" ? (
-        <small>Where: {getStepLocationLabels(step).join("; ")}</small>
-      ) : null}
-      {step.mode === "implementation" && status === "complete" ? (
-        <small>Use the `Incomplete` button on the step row to reopen this step and reset later steps.</small>
-      ) : null}
-      <div style={{ display: "grid", gap: 6 }}>
-        <div>
-          <strong className="detailHeading">What</strong>
-          <div>{step.explanation.what}</div>
-        </div>
-        <div>
-          <strong className="detailHeading">Why</strong>
-          <div>{step.explanation.why}</div>
-        </div>
-        {step.explanation.how ? (
-          <div>
-            <strong className="detailHeading">How</strong>
-            <div>{step.explanation.how}</div>
-          </div>
-        ) : null}
-        {step.explanation.impact ? (
-          <div>
-            <strong className="detailHeading">Impact</strong>
-            <div>{step.explanation.impact}</div>
-          </div>
-        ) : null}
-        {step.explanation.risk ? (
-          <div>
-            <strong className="detailHeading">Risk</strong>
-            <div>{step.explanation.risk}</div>
-          </div>
-        ) : null}
-      </div>
-      {step.mode === "implementation" ? (
-        <>
-          <strong className="detailHeading">Ghost Code</strong>
-          <pre>{step.ghostCode}</pre>
-        </>
-      ) : step.mode === "pr_review" ? (
-        <>
-          {step.review.beforeCode ? (
-            <>
-              <strong className="detailHeading">Before</strong>
-              <pre>{step.review.beforeCode}</pre>
-            </>
-          ) : null}
-          {step.review.afterCode ? (
-            <>
-              <strong className="detailHeading">After</strong>
-              <pre>{step.review.afterCode}</pre>
-            </>
-          ) : null}
-        </>
-      ) : (
-        <>
-          <strong className="detailHeading">Snippet</strong>
-          <pre>{step.snippet}</pre>
-        </>
-      )}
-    </section>
   );
 }
 

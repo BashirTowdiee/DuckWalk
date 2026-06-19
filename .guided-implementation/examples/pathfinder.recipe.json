@@ -4,12 +4,32 @@
   "title": "Trace backend authentication flow",
   "summary": "Shows how a protected request moves from auth middleware into token validation and route access checks.",
   "question": "How does authentication work in this backend project?",
+  "lens": "permission_flow",
+  "flow": {
+    "summary": "Request -> auth middleware -> auth service -> route guard",
+    "path": ["Request", "authMiddleware", "resolveAuthenticatedUser", "requireRole"],
+    "entrypoint": "HTTP request to a protected route",
+    "outcome": "Only authenticated requests with the right role reach the handler."
+  },
+  "followUps": [
+    {
+      "id": "follow-up-tests",
+      "kind": "tests",
+      "label": "Inspect auth tests",
+      "description": "Open the middleware tests to confirm the success path and failure branches.",
+      "file": "tests/auth/middleware.test.ts"
+    }
+  ],
   "createdAt": "2026-06-18T00:00:00.000Z",
   "steps": [
     {
       "id": "walkthrough-step-1",
       "order": 1,
       "mode": "codebase_walkthrough",
+      "touchpoint": "entry",
+      "confidence": "direct",
+      "evidenceQuality": "high",
+      "fileRationale": "This file is the first protected-route touchpoint where authentication begins.",
       "file": {
         "path": "src/auth/middleware.ts",
         "exists": true
@@ -23,14 +43,36 @@
           "endCharacter": 0
         }
       },
-      "relatedRanges": [
+      "subranges": [
         {
-          "startLine": 130,
-          "startCharacter": 0,
-          "endLine": 190,
-          "endCharacter": 0
+          "id": "middleware-entry",
+          "label": "Middleware entry",
+          "role": "primary",
+          "range": {
+            "startLine": 1,
+            "startCharacter": 0,
+            "endLine": 8,
+            "endCharacter": 0
+          },
+          "summary": "Reads the incoming Authorization header and extracts the bearer token.",
+          "snippet": "export async function authMiddleware(request, reply) {\n  const authHeader = request.headers.authorization;\n  const token = authHeader?.replace('Bearer ', '');\n}\n",
+          "symbols": ["authMiddleware"]
+        },
+        {
+          "id": "route-guard-context",
+          "label": "Route guard context",
+          "role": "context",
+          "range": {
+            "startLine": 130,
+            "startCharacter": 0,
+            "endLine": 190,
+            "endCharacter": 0
+          },
+          "summary": "Later route guards consume the authenticated user set up by the middleware.",
+          "symbols": ["requireRole"]
         }
       ],
+      "symbols": ["authMiddleware", "resolveAuthenticatedUser", "requireRole"],
       "explanation": {
         "title": "Start in the auth middleware",
         "what": "The middleware reads the bearer token from the incoming request.",
@@ -38,12 +80,41 @@
         "how": "The authorization header is parsed and its token is forwarded to the downstream validation service.",
         "impact": "Requests without a usable token fail before route handlers execute."
       },
-      "snippet": "export async function authMiddleware(request, reply) {\n  const authHeader = request.headers.authorization;\n  const token = authHeader?.replace('Bearer ', '');\n}\n"
+      "snippet": "export async function authMiddleware(request, reply) {\n  const authHeader = request.headers.authorization;\n  const token = authHeader?.replace('Bearer ', '');\n}\n",
+      "links": [
+        {
+          "stepId": "walkthrough-step-2",
+          "subrangeId": "token-validation",
+          "type": "calls",
+          "why": "The extracted token is validated by the auth service before the request can continue.",
+          "viaSymbol": "resolveAuthenticatedUser"
+        }
+      ],
+      "branches": [
+        {
+          "id": "missing-token",
+          "label": "Missing token",
+          "condition": "The Authorization header is missing or malformed.",
+          "outcome": "The request fails before the route handler runs."
+        },
+        {
+          "id": "success-path",
+          "label": "Success path",
+          "condition": "A bearer token is present.",
+          "outcome": "The request continues into token validation.",
+          "targetStepId": "walkthrough-step-2",
+          "targetSubrangeId": "token-validation"
+        }
+      ]
     },
     {
       "id": "walkthrough-step-2",
       "order": 2,
       "mode": "codebase_walkthrough",
+      "touchpoint": "transform",
+      "confidence": "direct",
+      "evidenceQuality": "high",
+      "fileRationale": "This file turns the raw token into the verified actor used by guards.",
       "file": {
         "path": "src/auth/service.ts",
         "exists": true
@@ -57,6 +128,23 @@
           "endCharacter": 0
         }
       },
+      "subranges": [
+        {
+          "id": "token-validation",
+          "label": "Token validation",
+          "role": "primary",
+          "range": {
+            "startLine": 10,
+            "startCharacter": 0,
+            "endLine": 21,
+            "endCharacter": 0
+          },
+          "summary": "Verifies the token and resolves the authenticated user.",
+          "snippet": "export async function resolveAuthenticatedUser(token) {\n  const payload = await verifyToken(token);\n  return { userId: payload.sub, roles: payload.roles };\n}\n",
+          "symbols": ["resolveAuthenticatedUser", "verifyToken"]
+        }
+      ],
+      "symbols": ["resolveAuthenticatedUser", "verifyToken"],
       "explanation": {
         "title": "Validate and decode the token",
         "what": "The auth service verifies the token and extracts the user identity.",

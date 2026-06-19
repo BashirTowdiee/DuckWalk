@@ -20,9 +20,9 @@ function formatStepLocation(step: GuidedSession["steps"][number]): string | null
     labels.push(step.location.anchorText);
   }
 
-  for (const range of step.relatedRanges ?? []) {
+  for (const subrange of step.subranges ?? []) {
     labels.push(
-      `${range.startLine}:${range.startCharacter} - ${range.endLine}:${range.endCharacter}`
+      `${subrange.label} (${subrange.role}): ${subrange.range.startLine}:${subrange.range.startCharacter} - ${subrange.range.endLine}:${subrange.range.endCharacter}`
     );
   }
 
@@ -43,6 +43,21 @@ export function renderSessionMarkdown(session: GuidedSession): string {
   if (session.mode === "codebase_walkthrough" && session.question) {
     lines.push("", `Question: ${session.question}`);
   }
+  if (session.mode === "codebase_walkthrough" && session.lens) {
+    lines.push(`Lens: ${session.lens}`);
+  }
+
+  if (session.mode === "codebase_walkthrough" && session.flow) {
+    lines.push("", "## Flow Summary", "");
+    lines.push(`- Summary: ${session.flow.summary}`);
+    lines.push(`- Path: ${session.flow.path.join(" -> ")}`);
+    if (session.flow.entrypoint) {
+      lines.push(`- Entrypoint: ${session.flow.entrypoint}`);
+    }
+    if (session.flow.outcome) {
+      lines.push(`- Outcome: ${session.flow.outcome}`);
+    }
+  }
 
   lines.push("");
 
@@ -54,6 +69,12 @@ export function renderSessionMarkdown(session: GuidedSession): string {
     if (locationDetail) {
       lines.push(`- Where: ${locationDetail}`);
     }
+    if (step.mode === "codebase_walkthrough") {
+      lines.push(`- Touchpoint: ${step.touchpoint}`);
+      lines.push(`- Confidence: ${step.confidence}`);
+      lines.push(`- Evidence quality: ${step.evidenceQuality}`);
+      lines.push(`- File rationale: ${step.fileRationale}`);
+    }
     lines.push(`- What: ${step.explanation.what}`);
     lines.push(`- Why: ${step.explanation.why}`);
     if (step.explanation.how) {
@@ -64,6 +85,9 @@ export function renderSessionMarkdown(session: GuidedSession): string {
     }
     if (step.explanation.risk) {
       lines.push(`- Risk: ${step.explanation.risk}`);
+    }
+    if (step.symbols?.length) {
+      lines.push(`- Symbols: ${step.symbols.join(", ")}`);
     }
     lines.push("");
 
@@ -78,6 +102,62 @@ export function renderSessionMarkdown(session: GuidedSession): string {
       }
     } else {
       lines.push("### Snippet", "", "```ts", step.snippet, "```", "");
+      if (step.subranges?.length) {
+        lines.push("### Evidence", "");
+
+        for (const subrange of step.subranges) {
+          lines.push(
+            `- ${subrange.label} [${subrange.role}] ${subrange.range.startLine}:${subrange.range.startCharacter} - ${subrange.range.endLine}:${subrange.range.endCharacter}`
+          );
+          if (subrange.summary) {
+            lines.push(`  Summary: ${subrange.summary}`);
+          }
+          if (subrange.symbols?.length) {
+            lines.push(`  Symbols: ${subrange.symbols.join(", ")}`);
+          }
+          if (subrange.snippet) {
+            lines.push("", "```ts", subrange.snippet, "```");
+          }
+        }
+
+        lines.push("");
+      }
+
+      if (step.links?.length) {
+        lines.push("### Links", "");
+        for (const link of step.links) {
+          const via = link.viaSymbol ? ` via ${link.viaSymbol}` : "";
+          const target = link.subrangeId ? `${link.stepId}#${link.subrangeId}` : link.stepId;
+          lines.push(`- ${link.type} -> ${target}${via}: ${link.why}`);
+        }
+        lines.push("");
+      }
+
+      if (step.branches?.length) {
+        lines.push("### Branches", "");
+        for (const branch of step.branches) {
+          const target = branch.targetStepId
+            ? ` -> ${branch.targetStepId}${branch.targetSubrangeId ? `#${branch.targetSubrangeId}` : ""}`
+            : "";
+          lines.push(`- ${branch.label}${target}`);
+          lines.push(`  Condition: ${branch.condition}`);
+          lines.push(`  Outcome: ${branch.outcome}`);
+        }
+        lines.push("");
+      }
+    }
+  }
+
+  if (session.mode === "codebase_walkthrough" && session.followUps?.length) {
+    lines.push("## Follow-ups", "");
+    for (const followUp of session.followUps) {
+      const target = followUp.stepId
+        ? `step ${followUp.stepId}`
+        : followUp.file
+          ? `file ${followUp.file}`
+          : "general";
+      lines.push(`- ${followUp.label} [${followUp.kind}] (${target})`);
+      lines.push(`  ${followUp.description}`);
     }
   }
 

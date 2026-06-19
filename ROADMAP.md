@@ -150,6 +150,8 @@ Deliverables:
 - `codebase_walkthrough` session mode
 - `pathfinder` MCP tool
 - Question-driven walkthrough schema
+- Named evidence subranges
+- Story and graph walkthrough views
 - Sidebar walkthrough rendering
 - File/range jump support for walkthrough steps
 - Walkthrough markdown output

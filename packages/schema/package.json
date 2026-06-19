@@ -14,8 +14,9 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "lint": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run src/guided-session.test.ts"
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run src/guided-session.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "zod": "^3.24.1"

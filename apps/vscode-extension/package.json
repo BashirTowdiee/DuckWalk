@@ -75,8 +75,9 @@
   "scripts": {
     "build": "node build.mjs",
     "dev": "node build.mjs --watch",
-    "lint": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@duckwalk/core": "workspace:*",

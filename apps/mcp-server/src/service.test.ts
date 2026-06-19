@@ -7,6 +7,12 @@ import { describe, expect, it } from "vitest";
 import type { GuidedSession } from "@duckwalk/schema";
 
 import {
+  codebaseWalkthroughSession,
+  createImplementationSession,
+  prReviewSession,
+  writeWalkthroughFixture
+} from "./service.fixtures";
+import {
   createGuidedSession,
   createPrReviewSession,
   getDuckWalkContract,
@@ -16,129 +22,8 @@ import {
   validateGuidedSessionInput
 } from "./service";
 
-function createImplementationSession(id: string, stepId = "step-1"): GuidedSession {
-  return {
-    id,
-    mode: "implementation",
-    title: "Implementation recipe",
-    summary: "Creates a source file.",
-    createdAt: "2026-06-18T00:00:00.000Z",
-    steps: [
-      {
-        id: stepId,
-        order: 1,
-        mode: "implementation",
-        file: {
-          path: `src/${id}.ts`,
-          createIfMissing: true
-        },
-        location: {
-          strategy: "create_file"
-        },
-        explanation: {
-          title: "Create feature file",
-          what: "Adds the feature file.",
-          why: "The feature starts here."
-        },
-        ghostCode: `export const ${id.replace(/-/g, "_")} = true;\n`,
-        validation: {
-          type: "normalised_match"
-        }
-      }
-    ]
-  };
-}
-
 const implementationSession = createImplementationSession("mcp-implementation");
 const secondImplementationSession = createImplementationSession("mcp-implementation-2", "step-2");
-
-const prReviewSession: GuidedSession = {
-  id: "mcp-review",
-  mode: "pr_review",
-  title: "PR review recipe",
-  summary: "Walks through a diff.",
-  createdAt: "2026-06-18T00:00:00.000Z",
-  steps: [
-    {
-      id: "review-step-1",
-      order: 1,
-      mode: "pr_review",
-      file: {
-        path: "src/feature.ts"
-      },
-      location: {
-        strategy: "range",
-        range: {
-          startLine: 1,
-          startCharacter: 0,
-          endLine: 3,
-          endCharacter: 0
-        }
-      },
-      explanation: {
-        title: "Review feature change",
-        what: "Adds the feature export.",
-        why: "Needed for downstream imports.",
-        impact: "The symbol is now public."
-      },
-      review: {
-        beforeCode: "",
-        afterCode: "export const feature = true;\n",
-        changedRange: {
-          startLine: 1,
-          startCharacter: 0,
-          endLine: 1,
-          endCharacter: 28
-        }
-      }
-    }
-  ]
-};
-
-const codebaseWalkthroughSession: GuidedSession = {
-  id: "mcp-walkthrough",
-  mode: "codebase_walkthrough",
-  title: "Trace backend authentication flow",
-  summary: "Explains how authentication moves from middleware into token validation.",
-  question: "How does authentication work in this backend?",
-  createdAt: "2026-06-18T00:00:00.000Z",
-  steps: [
-    {
-      id: "walk-step-1",
-      order: 1,
-      mode: "codebase_walkthrough",
-      file: {
-        path: "src/auth/middleware.ts"
-      },
-      location: {
-        strategy: "range",
-        range: {
-          startLine: 1,
-          startCharacter: 0,
-          endLine: 6,
-          endCharacter: 0
-        }
-      },
-      relatedRanges: [
-        {
-          startLine: 130,
-          startCharacter: 0,
-          endLine: 190,
-          endCharacter: 0
-        }
-      ],
-      explanation: {
-        title: "Start in the auth middleware",
-        what: "The middleware reads the bearer token from the incoming request.",
-        why: "Every protected route enters the auth flow at this touchpoint.",
-        how: "The authorization header is parsed and its token is passed into the auth service.",
-        impact: "Missing tokens fail before route handlers execute."
-      },
-      snippet:
-        "export async function authMiddleware(request, reply) {\n  const authHeader = request.headers.authorization;\n}\n"
-    }
-  ]
-};
 
 describe("duckWalk MCP service", () => {
   it("creates and reads an implementation session", async () => {
@@ -160,7 +45,11 @@ describe("duckWalk MCP service", () => {
     expect(contract.tools.pathfinder.description).toMatch(/codebase walkthrough/i);
     expect(contract.examples.create_guided_session.workspaceRoot).toMatch(/absolute\/path/);
     expect(contract.examples.pathfinder.session.question).toMatch(/authentication work/);
-    expect(contract.examples.pathfinder.session.steps[0]?.relatedRanges).toHaveLength(1);
+    expect(contract.guidance.pathfinderAuthoringHints).toHaveLength(5);
+    expect(contract.examples.pathfinder.session.steps[0]?.subranges).toHaveLength(2);
+    expect(contract.examples.pathfinder.session.steps[0]?.links?.[0]?.subrangeId).toBe(
+      "token-validate"
+    );
     expect(contract.examples.create_guided_session.session.steps[0]?.ghostCode).toMatch(
       /Rejects unauthenticated requests/
     );
@@ -185,7 +74,7 @@ describe("duckWalk MCP service", () => {
 
     expect(result.valid).toBe(true);
     expect(result.session.mode).toBe("codebase_walkthrough");
-    expect(result.session.stepCount).toBe(1);
+    expect(result.session.stepCount).toBe(2);
   });
 
   it("writes guided artifacts into the provided target workspace root", async () => {
@@ -251,12 +140,14 @@ describe("duckWalk MCP service", () => {
 
   it("creates a pathfinder walkthrough session", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "duckwalk-pathfinder-"));
+    await writeWalkthroughFixture(rootDir);
     const created = await pathfinder(rootDir, codebaseWalkthroughSession);
     const loaded = await getGuidedSession(rootDir, created.sessionId);
 
     expect(created.sessionId).toBe("mcp-walkthrough");
     expect(loaded.session.mode).toBe("codebase_walkthrough");
     expect(loaded.session.question).toBe("How does authentication work in this backend?");
+    expect(loaded.session.flow?.path).toHaveLength(3);
   });
 
   it("rejects a pr review session without a range target", async () => {
@@ -311,6 +202,10 @@ describe("duckWalk MCP service", () => {
           id: "walk-step-invalid",
           order: 1,
           mode: "codebase_walkthrough",
+          touchpoint: "entry",
+          confidence: "direct",
+          evidenceQuality: "high",
+          fileRationale: "This file still represents the auth entrypoint, but the location is invalid.",
           file: {
             path: "src/auth/middleware.ts"
           },
@@ -318,6 +213,19 @@ describe("duckWalk MCP service", () => {
             strategy: "line",
             line: 2
           },
+          subranges: [
+            {
+              id: "broken-primary",
+              label: "Broken primary",
+              role: "primary",
+              range: {
+                startLine: 2,
+                startCharacter: 0,
+                endLine: 3,
+                endCharacter: 0
+              }
+            }
+          ],
           explanation: {
             title: "Broken walkthrough step",
             what: "Shows the auth middleware.",
@@ -331,5 +239,25 @@ describe("duckWalk MCP service", () => {
     };
 
     await expect(pathfinder(rootDir, invalidSession)).rejects.toThrow(/location range/);
+  });
+
+  it("rejects a walkthrough session when the step snippet does not overlap the declared evidence", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "duckwalk-walkthrough-snippet-"));
+    await writeWalkthroughFixture(rootDir);
+
+    const invalidSession: GuidedSession = {
+      ...codebaseWalkthroughSession,
+      id: "mcp-walkthrough-bad-snippet",
+      steps: codebaseWalkthroughSession.steps.map((step, index) =>
+        index === 0
+          ? {
+              ...step,
+              snippet: "export const definitelyNotInThisRange = false;\n"
+            }
+          : step
+      )
+    };
+
+    await expect(pathfinder(rootDir, invalidSession)).rejects.toThrow(/snippet must overlap/);
   });
 });

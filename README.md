@@ -64,14 +64,21 @@ Each step includes:
 
 - Global step number
 - File path
-- Exact code range
+- Lens-specific flow context
+- Exact primary code range
+- Named evidence subranges for action and context
+- Touchpoint type
+- Confidence and evidence quality
+- File-level rationale
 - What the touchpoint does
 - Why it matters in the flow
 - How control or data moves to the next touchpoint
 - Read-only code snippet for the explanation
+- Symbol references, explicit links to the next touchpoint, and optional branch outcomes
+- Follow-up actions for implementation, tests, or config
 
-The user moves through the walkthrough manually in the sidebar and sees how the architecture flow
-links together across files.
+The user moves through the walkthrough manually in the sidebar, flips between story and graph
+views, and sees how the architecture flow links together across files.
 
 ## MVP scope
 
@@ -270,36 +277,7 @@ node /absolute/path/to/duckwalk/apps/mcp-server/dist/server.js
 
 Use the example recipes in `.guided-implementation/examples/` as starter payload references when shaping `GuidedSession` inputs.
 
-## Example Pathfinder step
-
-```json
-{
-  "id": "walkthrough-step-1",
-  "order": 1,
-  "mode": "codebase_walkthrough",
-  "file": {
-    "path": "src/auth/middleware.ts",
-    "exists": true
-  },
-  "location": {
-    "strategy": "range",
-    "range": {
-      "startLine": 1,
-      "startCharacter": 0,
-      "endLine": 12,
-      "endCharacter": 0
-    }
-  },
-  "explanation": {
-    "title": "Start at the auth middleware",
-    "what": "This middleware extracts the bearer token from the request.",
-    "why": "Every protected route enters the authentication flow here.",
-    "how": "The request header is parsed and the token is passed to the downstream auth service.",
-    "impact": "Requests without a token fail before route handlers run."
-  },
-  "snippet": "export async function authMiddleware(request, reply) {\\n  const authHeader = request.headers.authorization;\\n}\\n"
-}
-```
+See [docs/pathfinder-walkthroughs.md](docs/pathfinder-walkthroughs.md) for the expanded Pathfinder contract, branch model, follow-up actions, and targeted subrange links.
 
 ## Example implementation step
 
