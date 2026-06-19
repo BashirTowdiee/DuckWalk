@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
@@ -6,9 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const pluginManifestPath = path.join(repoRoot, "plugins", "duckwalk", ".codex-plugin", "plugin.json");
 const semverPattern = /^(\d+)\.(\d+)\.(\d+)$/;
-const manifestVersionPattern = /^(\d+\.\d+\.\d+)(?:\+codex\.(\d{14}))?$/;
+const rootManifestPath = path.join(repoRoot, "package.json");
 
 function logStep(message) {
   process.stdout.write(`\n[plugin:bump] ${message}\n`);
@@ -35,18 +34,6 @@ function runCommand(command, args) {
       reject(error);
     });
   });
-}
-
-function formatTimestamp(date = new Date()) {
-  const pad = (value) => String(value).padStart(2, "0");
-  return [
-    date.getUTCFullYear(),
-    pad(date.getUTCMonth() + 1),
-    pad(date.getUTCDate()),
-    pad(date.getUTCHours()),
-    pad(date.getUTCMinutes()),
-    pad(date.getUTCSeconds())
-  ].join("");
 }
 
 function bumpBaseVersion(baseVersion, bumpType) {
@@ -81,19 +68,11 @@ function bumpBaseVersion(baseVersion, bumpType) {
 }
 
 function resolveNextVersion(currentVersion, requestedValue) {
-  const match = manifestVersionPattern.exec(currentVersion);
-  if (!match) {
-    throw new Error(
-      `Unsupported plugin manifest version format: ${currentVersion}. Expected <semver> or <semver>+codex.<timestamp>.`
-    );
+  if (!semverPattern.test(currentVersion)) {
+    throw new Error(`Unsupported root version format: ${currentVersion}. Expected plain semver x.y.z.`);
   }
 
-  const currentBaseVersion = match[1];
-  const nextBaseVersion = semverPattern.test(requestedValue)
-    ? requestedValue
-    : bumpBaseVersion(currentBaseVersion, requestedValue);
-
-  return `${nextBaseVersion}+codex.${formatTimestamp()}`;
+  return semverPattern.test(requestedValue) ? requestedValue : bumpBaseVersion(currentVersion, requestedValue);
 }
 
 async function main() {
@@ -106,21 +85,19 @@ async function main() {
     throw new Error("Expected patch, minor, major, or an explicit semver like 0.2.0");
   }
 
-  const rawManifest = await readFile(pluginManifestPath, "utf8");
+  const rawManifest = await readFile(rootManifestPath, "utf8");
   const manifest = JSON.parse(rawManifest);
   if (typeof manifest.version !== "string" || manifest.version.length === 0) {
-    throw new Error("Plugin manifest version is required");
+    throw new Error("Root package version is required");
   }
 
   const nextVersion = resolveNextVersion(manifest.version, requestedValue);
-  manifest.version = nextVersion;
-
-  logStep(`Updating plugin version to ${nextVersion}`);
-  await writeFile(pluginManifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  logStep(`Updating canonical release version to ${nextVersion}`);
+  await runCommand("pnpm", ["release:version", nextVersion]);
 
   logStep("Running plugin:refresh");
   await runCommand("pnpm", ["plugin:refresh"]);
-  process.stdout.write(`[plugin:bump] Done. Plugin manifest now uses ${nextVersion}.\n`);
+  process.stdout.write(`[plugin:bump] Done. Canonical release version now uses ${nextVersion}.\n`);
 }
 
 main().catch((error) => {

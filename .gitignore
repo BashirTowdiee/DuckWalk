@@ -4,6 +4,7 @@
 node_modules
 dist
 .turbo
+.release
 .guided-implementation/current.recipe.json
 .guided-implementation/current.recipe.md
 .guided-implementation/state.json

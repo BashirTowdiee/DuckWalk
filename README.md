@@ -8,6 +8,29 @@ Instead of letting an AI agent directly edit files or answer architecture questi
 
 The goal is to make AI-assisted coding more understandable, reviewable, and deliberate.
 
+## Install
+
+DuckWalk ships as three public artifacts:
+
+- VS Code extension: `duckwalk.duckwalk-vscode-extension` on the VS Code Marketplace and Open VSX
+- MCP server: `@duckwalk/mcp-server` on npm
+- Codex plugin: GitHub Release marketplace bundle for self-serve Codex installation
+
+Start with the full public install guide in [docs/install.md](docs/install.md).
+
+## Release
+
+Contributor-facing release commands:
+
+```bash
+pnpm release:version 0.1.2
+pnpm release:check
+pnpm release:artifacts
+pnpm release:publish
+```
+
+Release credentials, automation, and rollback notes live in [docs/releasing.md](docs/releasing.md).
+
 ## Core idea
 
 A coding agent such as Codex, Claude Code, Cursor, Aider, or another harness creates a structured `GuidedSession`.
@@ -142,7 +165,7 @@ review playback, or walkthrough.
 When a session is created in a target project, duckWalk also ensures that project's
 `.gitignore` includes `.guided-implementation/` unless an equivalent rule already exists.
 
-## Setup
+## Develop
 
 ### Requirements
 

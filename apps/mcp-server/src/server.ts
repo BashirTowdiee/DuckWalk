@@ -19,7 +19,7 @@ const rootDir = process.env.DUCKWALK_ROOT ?? process.cwd();
 const server = new Server(
   {
     name: "duckwalk-mcp",
-    version: "0.1.0"
+    version: "0.1.1"
   },
   {
     capabilities: {

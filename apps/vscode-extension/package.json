@@ -2,10 +2,41 @@
   "name": "duckwalk-vscode-extension",
   "displayName": "duckWalk",
   "description": "Guided implementation, PR review playback, and Pathfinder walkthroughs for VS Code.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "publisher": "duckwalk",
+  "license": "MIT",
   "type": "commonjs",
+  "icon": "media/duckwalk-icon.png",
+  "galleryBanner": {
+    "color": "#0E1822",
+    "theme": "dark"
+  },
+  "pricing": "Free",
+  "categories": [
+    "Other",
+    "Testing",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "duckwalk",
+    "codex",
+    "mcp",
+    "pathfinder",
+    "code-review",
+    "architecture",
+    "walkthrough",
+    "implementation"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BashirTowdiee/DuckWalk.git",
+    "directory": "apps/vscode-extension"
+  },
+  "homepage": "https://github.com/BashirTowdiee/DuckWalk/tree/main/apps/vscode-extension#readme",
+  "bugs": {
+    "url": "https://github.com/BashirTowdiee/DuckWalk/issues"
+  },
   "engines": {
     "vscode": "^1.96.0"
   },
@@ -77,9 +108,10 @@
     "dev": "node build.mjs --watch",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "vscode:prepublish": "node build.mjs"
   },
-  "dependencies": {
+  "devDependencies": {
     "@duckwalk/core": "workspace:*",
     "@duckwalk/schema": "workspace:*",
     "react": "^18.3.1",

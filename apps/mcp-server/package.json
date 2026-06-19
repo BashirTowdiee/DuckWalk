@@ -1,10 +1,45 @@
 {
   "name": "@duckwalk/mcp-server",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.1.1",
+  "description": "duckWalk MCP server for guided implementation, PR review playback, and Pathfinder walkthroughs.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BashirTowdiee/DuckWalk.git",
+    "directory": "apps/mcp-server"
+  },
+  "homepage": "https://github.com/BashirTowdiee/DuckWalk/tree/main/apps/mcp-server#readme",
+  "bugs": {
+    "url": "https://github.com/BashirTowdiee/DuckWalk/issues"
+  },
+  "keywords": [
+    "duckwalk",
+    "mcp",
+    "model-context-protocol",
+    "codex",
+    "pathfinder",
+    "code-review",
+    "architecture"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "bin": {
     "duckwalk-mcp": "./dist/server.js"
   },
@@ -16,9 +51,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@duckwalk/core": "workspace:*",
-    "@duckwalk/schema": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.4",
     "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@duckwalk/core": "workspace:*",
+    "@duckwalk/schema": "workspace:*"
   }
 }

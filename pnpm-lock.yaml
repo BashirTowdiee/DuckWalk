@@ -59,21 +59,22 @@ importers:
 
   apps/mcp-server:
     dependencies:
-      '@duckwalk/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@duckwalk/schema':
-        specifier: workspace:*
-        version: link:../../packages/schema
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.4
         version: 1.29.0(zod@3.25.76)
       zod:
         specifier: ^3.24.1
         version: 3.25.76
+    devDependencies:
+      '@duckwalk/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@duckwalk/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
 
   apps/vscode-extension:
-    dependencies:
+    devDependencies:
       '@duckwalk/core':
         specifier: workspace:*
         version: link:../../packages/core
