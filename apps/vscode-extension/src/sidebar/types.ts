@@ -1,4 +1,4 @@
-import type { GuidedSessionState } from "@duckwalk/core";
+import type { GuidedSessionHistoryEntry, GuidedSessionState } from "@duckwalk/core";
 import type { GuidedSession } from "@duckwalk/schema";
 
 export type GuidanceMode = "suggest" | "hover" | "peek" | "inline" | "diff";
@@ -14,6 +14,7 @@ export type WebviewState = {
   activeStepId: string | null;
   activeEvidenceId: string | null;
   walkthroughDrift: WalkthroughDriftState | null;
+  sessionHistory: GuidedSessionHistoryEntry[];
   isPlaying: boolean;
   guidanceMode: GuidanceMode;
   tabAcceptEnabled: boolean;
@@ -33,6 +34,7 @@ export type SidebarMessage =
   | { type: "set-step-completion"; stepId: string; complete: boolean }
   | { type: "select-evidence"; stepId: string; evidenceId: string }
   | { type: "select-step"; stepId: string; evidenceId?: string | undefined }
+  | { type: "switch-session"; sessionId: string }
   | { type: "open-file"; path: string };
 
 export interface SidebarController {

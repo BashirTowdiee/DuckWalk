@@ -3,7 +3,7 @@
   "displayName": "duckWalk",
   "description": "Guided implementation, PR review playback, and Pathfinder walkthroughs for VS Code.",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "publisher": "duckwalk",
   "type": "commonjs",
   "engines": {

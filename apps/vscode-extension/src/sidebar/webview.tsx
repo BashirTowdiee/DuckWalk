@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import type { WebviewState } from "./types";
+import { SessionHistoryPanel } from "./session-history";
 import { FlowSummaryPanel, StepDetails, WalkthroughGraph } from "./walkthrough-components";
 import {
   getGuidanceModeHelp,
@@ -26,6 +27,7 @@ const initialState: WebviewState = {
   activeStepId: null,
   activeEvidenceId: null,
   walkthroughDrift: null,
+  sessionHistory: [],
   isPlaying: false,
   guidanceMode: "diff",
   tabAcceptEnabled: false,
@@ -66,7 +68,7 @@ function App() {
   return (
     <div style={{ display: "grid", gap: 12, padding: 12 }}>
       <header style={{ display: "grid", gap: 4 }}>
-        <strong className="sidebarTitle">duckWalk</strong>
+        <strong className="sidebarTitle">DuckWalk</strong>
         {state.session ? (
           <>
             <span className="sessionTitle">{state.session.title}</span>
@@ -94,6 +96,11 @@ function App() {
           </small>
         ) : null}
       </header>
+
+      <SessionHistoryPanel
+        entries={state.sessionHistory}
+        currentSessionId={state.session?.id ?? null}
+      />
 
       <section style={{ display: "grid", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>

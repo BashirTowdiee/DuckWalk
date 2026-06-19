@@ -1,4 +1,4 @@
-import type { GuidedSessionState } from "@duckwalk/core";
+import type { GuidedSessionHistoryEntry, GuidedSessionState } from "@duckwalk/core";
 import type { GuidedSession, GuidedStep } from "@duckwalk/schema";
 import * as vscode from "vscode";
 
@@ -65,6 +65,7 @@ export function createWebviewState(params: {
   activeStepId: string | null;
   activeEvidenceId: string | null;
   walkthroughDrift: WalkthroughDriftState | null;
+  sessionHistory: GuidedSessionHistoryEntry[];
   isPlaying: boolean;
   guidanceMode: GuidanceMode;
   tabAcceptEnabled: boolean;
@@ -76,6 +77,7 @@ export function createWebviewState(params: {
     activeStepId: params.activeStepId,
     activeEvidenceId: params.activeEvidenceId,
     walkthroughDrift: params.walkthroughDrift,
+    sessionHistory: params.sessionHistory,
     isPlaying: params.isPlaying,
     guidanceMode: params.guidanceMode,
     tabAcceptEnabled: params.tabAcceptEnabled,

@@ -1,6 +1,6 @@
 {
   "name": "duckwalk",
-  "version": "0.1.0+codex.20260618065330",
+  "version": "0.1.1+codex.20260619010922",
   "description": "Codex plugin for duckWalk guided implementation, PR review playback, and Pathfinder codebase walkthroughs.",
   "author": {
     "name": "duckWalk"

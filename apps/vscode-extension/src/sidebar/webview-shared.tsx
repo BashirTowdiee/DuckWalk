@@ -2,6 +2,8 @@ import type { GuidedStep, WalkthroughSubrange } from "@duckwalk/schema";
 
 import type { GuidanceMode, SidebarMessage } from "./types";
 
+const vscodeApi = window.acquireVsCodeApi();
+
 export const guidanceModeOptions: Array<{ value: GuidanceMode; label: string }> = [
   { value: "diff", label: "Diff Preview" },
   { value: "inline", label: "Ghost Inline" },
@@ -97,5 +99,5 @@ export function SymbolChips({ symbols }: { symbols?: string[] | undefined }) {
 }
 
 export function postSidebarMessage(message: SidebarMessage) {
-  window.acquireVsCodeApi().postMessage(message);
+  vscodeApi.postMessage(message);
 }

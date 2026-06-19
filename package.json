@@ -8,6 +8,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
+    "plugin:bump": "node scripts/plugin-bump.mjs",
     "plugin:refresh": "node scripts/plugin-refresh.mjs",
     "test": "vitest run",
     "typecheck": "turbo run typecheck"

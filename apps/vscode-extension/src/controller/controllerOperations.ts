@@ -13,6 +13,7 @@ export async function dispatchSidebarMessage(params: {
   setGuidanceMode: (mode: GuidanceMode) => Promise<void>;
   toggleTabAccept: () => void;
   reloadSession: () => Promise<void>;
+  switchSession: (sessionId: string) => Promise<void>;
   completeActiveStep: () => Promise<void>;
   undoCompleteActiveStep: () => Promise<void>;
   setStepCompletion: (stepId: string, complete: boolean) => Promise<void>;
@@ -35,6 +36,8 @@ export async function dispatchSidebarMessage(params: {
       return params.toggleTabAccept();
     case "refresh-session":
       return params.reloadSession();
+    case "switch-session":
+      return params.switchSession(params.message.sessionId);
     case "complete-step":
       return params.completeActiveStep();
     case "undo-complete-step":

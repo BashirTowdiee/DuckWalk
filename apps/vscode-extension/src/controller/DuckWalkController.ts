@@ -1,4 +1,4 @@
-import { resolveGuidedPaths, type GuidedSessionState } from "@duckwalk/core";
+import { listGuidedSessions, switchGuidedSession, resolveGuidedPaths, type GuidedSessionState } from "@duckwalk/core";
 import type { GuidedSession, GuidedStep } from "@duckwalk/schema";
 import * as vscode from "vscode";
 
@@ -111,6 +111,7 @@ export class DuckWalkController implements SidebarController, vscode.Disposable 
       setGuidanceMode: (mode) => this.setGuidanceMode(mode),
       toggleTabAccept: () => this.toggleTabAccept(),
       reloadSession: () => this.reloadSession(),
+      switchSession: async (sessionId) => { await switchGuidedSession(this.workspaceRoot, sessionId); await this.reloadSession(); },
       completeActiveStep: () => this.completeActiveStep(),
       undoCompleteActiveStep: () => this.undoCompleteActiveStep(),
       setStepCompletion: (stepId, complete) => this.setStepCompletion(stepId, complete),
@@ -283,7 +284,6 @@ export class DuckWalkController implements SidebarController, vscode.Disposable 
         void this.advancePlayback();
       }, 2500);
     }
-
     void this.publishState(null);
   }
   private async advancePlayback() {
@@ -382,12 +382,14 @@ export class DuckWalkController implements SidebarController, vscode.Disposable 
     });
   }
   private async publishState(error: string | null): Promise<void> {
+    const sessionHistory = await listGuidedSessions(this.workspaceRoot).catch(() => []);
     const payload = createWebviewState({
       session: this.session,
       guidedState: this.guidedState,
       activeStepId: this.activeStepId,
       activeEvidenceId: this.activeEvidenceId,
       walkthroughDrift: this.walkthroughDrift,
+      sessionHistory,
       isPlaying: this.isPlaying,
       guidanceMode: this.guidanceMode,
       tabAcceptEnabled: this.tabAcceptEnabled,
