@@ -1,4 +1,5 @@
 export * from "./diff-parser";
+export * from "./gitignore";
 export * from "./markdown-writer";
 export * from "./recipe-writer";
 export * from "./session";

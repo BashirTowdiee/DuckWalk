@@ -80,12 +80,14 @@ describe("duckWalk MCP service", () => {
   it("writes guided artifacts into the provided target workspace root", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "duckwalk-root-target-"));
     const created = await createGuidedSession(rootDir, implementationSession);
-    const gitignore = await readFile(path.join(rootDir, ".gitignore"), "utf8");
 
     expect(created.recipePath).toContain(rootDir);
     expect(created.markdownPath).toContain(rootDir);
     expect(created.statePath).toContain(rootDir);
-    expect(gitignore).toContain(".guided-implementation/");
+    expect(created.gitignoreSuggestion.path).toBe(path.join(rootDir, ".gitignore"));
+    expect(created.gitignoreSuggestion.entry).toBe(".guided-implementation/");
+    expect(created.gitignoreSuggestion.alreadyPresent).toBe(false);
+    await expect(readFile(path.join(rootDir, ".gitignore"), "utf8")).rejects.toThrow();
   });
 
   it("updates step status", async () => {
@@ -145,9 +147,99 @@ describe("duckWalk MCP service", () => {
     const loaded = await getGuidedSession(rootDir, created.sessionId);
 
     expect(created.sessionId).toBe("mcp-walkthrough");
+    expect(created.gitignoreSuggestion.entry).toBe(".guided-implementation/");
     expect(loaded.session.mode).toBe("codebase_walkthrough");
     expect(loaded.session.question).toBe("How does authentication work in this backend?");
     expect(loaded.session.flow?.path).toHaveLength(3);
+  });
+
+  it("normalizes common codebase walkthrough enum aliases before persistence", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "duckwalk-pathfinder-aliases-"));
+    await writeWalkthroughFixture(rootDir);
+
+    const aliasedSession = {
+      ...codebaseWalkthroughSession,
+      lens: "permissions",
+      followUps: [
+        {
+          ...codebaseWalkthroughSession.followUps?.[0],
+          kind: "test"
+        }
+      ],
+      steps: codebaseWalkthroughSession.steps.map((step, index) => {
+        if (step.mode !== "codebase_walkthrough") {
+          return step;
+        }
+
+        if (index === 0) {
+          return {
+            ...step,
+            touchpoint: "endpoint",
+            confidence: "certain",
+            evidenceQuality: "strong",
+            subranges: step.subranges?.map((subrange, subrangeIndex) =>
+              subrangeIndex === 1
+                ? {
+                    ...subrange,
+                    role: "supporting"
+                  }
+                : subrange
+            ),
+            links: step.links?.map((link) => ({
+              ...link,
+              type: "invoke"
+            }))
+          };
+        }
+
+        return {
+          ...step,
+          touchpoint: "derive"
+        };
+      })
+    };
+
+    const created = await pathfinder(rootDir, aliasedSession);
+    const loaded = await getGuidedSession(rootDir, created.sessionId);
+
+    expect(loaded.session.lens).toBe("permission_flow");
+    expect(loaded.session.followUps?.[0]?.kind).toBe("tests");
+    expect(loaded.session.steps[0]?.mode).toBe("codebase_walkthrough");
+    if (loaded.session.steps[0]?.mode !== "codebase_walkthrough") {
+      throw new Error("Expected first walkthrough step to stay in codebase_walkthrough mode");
+    }
+    if (loaded.session.steps[1]?.mode !== "codebase_walkthrough") {
+      throw new Error("Expected second walkthrough step to stay in codebase_walkthrough mode");
+    }
+    expect(loaded.session.steps[0].touchpoint).toBe("entry");
+    expect(loaded.session.steps[0].confidence).toBe("direct");
+    expect(loaded.session.steps[0].evidenceQuality).toBe("high");
+    expect(loaded.session.steps[0].subranges?.[1]?.role).toBe("context");
+    expect(loaded.session.steps[0].links?.[0]?.type).toBe("calls");
+    expect(loaded.session.steps[1].touchpoint).toBe("transform");
+  });
+
+  it("reports allowed walkthrough enum values when validation still fails", () => {
+    const invalidSession = {
+      ...codebaseWalkthroughSession,
+      steps: codebaseWalkthroughSession.steps.map((step, index) =>
+        index === 0
+          ? {
+              ...step,
+              touchpoint: "middleware_phase"
+            }
+          : step
+      )
+    };
+
+    expect(() =>
+      validateGuidedSessionInput({
+        session: invalidSession,
+        expectMode: "codebase_walkthrough"
+      })
+    ).toThrow(
+      /steps\[0\]\.touchpoint: .*Allowed values: entry, guard, read, write, transform, emit, respond, config/
+    );
   });
 
   it("rejects a pr review session without a range target", async () => {

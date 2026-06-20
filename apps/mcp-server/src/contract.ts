@@ -2,7 +2,7 @@ export function getDuckWalkContract() {
   return {
     server: {
       name: "duckwalk-mcp",
-      version: "0.1.3"
+      version: "0.1.4"
     },
     guidance: {
       summary:
@@ -10,7 +10,7 @@ export function getDuckWalkContract() {
       workspaceRoot:
         "Always pass workspaceRoot as the absolute target task workspace path when creating, reading, or updating guided sessions.",
       gitignore:
-        "Session creation automatically adds .guided-implementation/ to the target workspace .gitignore when no equivalent ignore rule already exists.",
+        "duckWalk writes .guided-implementation files into the target workspace without modifying .gitignore, and create-session results include a ready-to-apply ignore suggestion.",
       commentStyle:
         "For functions or non-trivial logic in ghostCode, include short pragmatic comments that say what the code does. Only use an `Important:` comment when the behavior is safety-critical, stateful, or easy to misuse.",
       pathfinderAuthoringHints: [

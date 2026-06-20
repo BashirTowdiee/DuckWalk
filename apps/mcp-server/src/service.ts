@@ -1,4 +1,5 @@
 import {
+  getGuidedImplementationGitignoreStatus,
   guidedSessionStateSchema,
   readGuidedSession,
   readGuidedState,
@@ -10,13 +11,13 @@ import {
   sessionModeSchema,
   guidedSessionSchema,
   stepStatusSchema,
-  type GuidedSession,
   type SessionMode,
   type StepStatus
 } from "@duckwalk/schema";
 import { z } from "zod";
 
 import { getDuckWalkContract } from "./contract";
+import { parseGuidedSessionInput } from "./session-input";
 import {
   validateCodebaseWalkthroughSession,
   validateCodebaseWalkthroughWorkspace,
@@ -30,7 +31,7 @@ const updateStepStatusInputSchema = z.object({
 });
 
 const validateGuidedSessionInputSchema = z.object({
-  session: guidedSessionSchema,
+  session: z.unknown(),
   expectMode: sessionModeSchema.optional()
 });
 
@@ -39,16 +40,21 @@ export type CreateGuidedSessionResult = {
   recipePath: string;
   markdownPath: string;
   statePath: string;
+  gitignoreSuggestion: {
+    path: string;
+    entry: string;
+    alreadyPresent: boolean;
+  };
 };
 
 export { getDuckWalkContract };
 
 export function validateGuidedSessionInput(input: {
-  session: GuidedSession;
+  session: unknown;
   expectMode?: SessionMode;
 }) {
   const payload = validateGuidedSessionInputSchema.parse(input);
-  const session = guidedSessionSchema.parse(payload.session);
+  const session = parseGuidedSessionInput(payload.session);
 
   if (payload.expectMode && session.mode !== payload.expectMode) {
     throw new Error(`Expected session mode "${payload.expectMode}" but received "${session.mode}"`);
@@ -84,27 +90,36 @@ async function isCurrentSession(rootDir: string, sessionId: string): Promise<boo
   }
 }
 
+async function buildCreateResult(
+  rootDir: string,
+  sessionId: string,
+  files: Awaited<ReturnType<typeof writeRecipeFiles>>
+): Promise<CreateGuidedSessionResult> {
+  return {
+    sessionId,
+    recipePath: files.recipePath,
+    markdownPath: files.markdownPath,
+    statePath: files.statePath,
+    gitignoreSuggestion: await getGuidedImplementationGitignoreStatus(rootDir)
+  };
+}
+
 export async function createGuidedSession(
   rootDir: string,
-  sessionInput: GuidedSession
+  sessionInput: unknown
 ): Promise<CreateGuidedSessionResult> {
-  const session = guidedSessionSchema.parse(sessionInput);
+  const session = parseGuidedSessionInput(sessionInput);
   validateSessionIntegrity(session);
   const files = await writeRecipeFiles(rootDir, session);
 
-  return {
-    sessionId: session.id,
-    recipePath: files.recipePath,
-    markdownPath: files.markdownPath,
-    statePath: files.statePath
-  };
+  return await buildCreateResult(rootDir, session.id, files);
 }
 
 export async function createPrReviewSession(
   rootDir: string,
-  sessionInput: GuidedSession
+  sessionInput: unknown
 ): Promise<CreateGuidedSessionResult> {
-  const session = guidedSessionSchema.parse(sessionInput);
+  const session = parseGuidedSessionInput(sessionInput);
 
   if (session.mode !== "pr_review") {
     throw new Error('create_pr_review_session requires mode "pr_review"');
@@ -114,19 +129,14 @@ export async function createPrReviewSession(
   validatePrReviewStepRanges(session);
   const files = await writeRecipeFiles(rootDir, session);
 
-  return {
-    sessionId: session.id,
-    recipePath: files.recipePath,
-    markdownPath: files.markdownPath,
-    statePath: files.statePath
-  };
+  return await buildCreateResult(rootDir, session.id, files);
 }
 
 export async function pathfinder(
   rootDir: string,
-  sessionInput: GuidedSession
+  sessionInput: unknown
 ): Promise<CreateGuidedSessionResult> {
-  const session = guidedSessionSchema.parse(sessionInput);
+  const session = parseGuidedSessionInput(sessionInput);
 
   if (session.mode !== "codebase_walkthrough") {
     throw new Error('pathfinder requires mode "codebase_walkthrough"');
@@ -137,12 +147,7 @@ export async function pathfinder(
   await validateCodebaseWalkthroughWorkspace(rootDir, walkthroughSteps);
   const files = await writeRecipeFiles(rootDir, session);
 
-  return {
-    sessionId: session.id,
-    recipePath: files.recipePath,
-    markdownPath: files.markdownPath,
-    statePath: files.statePath
-  };
+  return await buildCreateResult(rootDir, session.id, files);
 }
 
 export async function getGuidedSession(rootDir: string, sessionId?: string) {

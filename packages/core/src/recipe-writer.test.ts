@@ -48,24 +48,23 @@ describe("writeRecipeFiles", () => {
     expect(markdown).toContain("# Recipe session");
   });
 
-  it("adds a guided implementation ignore rule to the target workspace", async () => {
+  it("does not create a .gitignore file as a side effect", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "duckwalk-recipe-ignore-"));
     await writeRecipeFiles(rootDir, session);
 
-    const gitignore = await readFile(path.join(rootDir, ".gitignore"), "utf8");
-
-    expect(gitignore).toContain(".guided-implementation/");
+    await expect(readFile(path.join(rootDir, ".gitignore"), "utf8")).rejects.toThrow();
   });
 
-  it("does not duplicate the guided implementation ignore rule", async () => {
+  it("preserves an existing .gitignore file unchanged", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "duckwalk-recipe-ignore-idempotent-"));
     const gitignorePath = path.join(rootDir, ".gitignore");
+    const originalGitignore = "dist\n.env\n";
 
-    await writeFile(gitignorePath, ".guided-implementation/\n");
+    await writeFile(gitignorePath, originalGitignore);
     await writeRecipeFiles(rootDir, session);
 
     const gitignore = await readFile(gitignorePath, "utf8");
 
-    expect(gitignore.match(/^\.guided-implementation\/$/gm)).toHaveLength(1);
+    expect(gitignore).toBe(originalGitignore);
   });
 });
